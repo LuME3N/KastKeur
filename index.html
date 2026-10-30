@@ -1,0 +1,1217 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kastkeur</title>
+<meta name="description" content="Groepenkast en woning keuren, metingen vastleggen en rapporten maken.">
+<meta name="theme-color" content="#15202B">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+/* Layout: mobiele app — vaste kopbalk, één kolom werkblad, tabbalk onderin; op desktop een smalle centrale kolom. */
+:root{
+  --bg:#EEF1F3; --surface:#FFFFFF; --sunk:#E3E8EC; --ink:#15202B; --muted:#5A6774; --line:#D3DAE0;
+  --accent:#A9521C; --accent-soft:#F6E6DB; --on-accent:#FFFFFF;
+  --ok:#1C7A4C; --ok-soft:#DDF1E6; --warn:#9A6408; --warn-soft:#FBEFD6; --bad:#BA3328; --bad-soft:#F9E0DD; --open:#66727E; --open-soft:#E6EAED;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E141A; --surface:#161F27; --sunk:#1D2832; --ink:#E5EBF0; --muted:#94A2AF; --line:#2A3641;
+  --accent:#E3884F; --accent-soft:#3A2618; --on-accent:#1A0F08;
+  --ok:#4FC38B; --ok-soft:#163327; --warn:#E5B54A; --warn-soft:#3A2E14; --bad:#F2766B; --bad-soft:#3D1E1B; --open:#93A0AC; --open-soft:#24303A;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E141A; --surface:#161F27; --sunk:#1D2832; --ink:#E5EBF0; --muted:#94A2AF; --line:#2A3641;
+  --accent:#E3884F; --accent-soft:#3A2618; --on-accent:#1A0F08;
+  --ok:#4FC38B; --ok-soft:#163327; --warn:#E5B54A; --warn-soft:#3A2E14; --bad:#F2766B; --bad-soft:#3D1E1B; --open:#93A0AC; --open-soft:#24303A;
+  color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+button,select,input,textarea{-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;align-items:center;gap:10px;padding-block:10px;min-height:56px}
+.brand{font-family:var(--f-display);font-weight:700;font-size:24px;letter-spacing:.02em;text-transform:uppercase;line-height:1}
+.brand b{color:var(--accent)}
+.ttl{flex:1;min-width:0}
+.ttl .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ttl .s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.savest{font-size:12px;color:var(--muted);white-space:nowrap}
+main{padding-block:18px 110px}
+main.home{padding-bottom:40px}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;letter-spacing:.01em;text-wrap:balance;margin:0}
+h1{font-size:30px;line-height:1.05}
+h2{font-size:22px;text-transform:uppercase;letter-spacing:.03em}
+h3{font-size:17px;text-transform:uppercase;letter-spacing:.04em}
+.lead{color:var(--muted);max-width:62ch;margin:6px 0 0}
+.stack{display:flex;flex-direction:column;gap:14px}
+.sec{display:flex;flex-direction:column;gap:12px;margin-top:26px}
+.sec:first-child{margin-top:0}
+.sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+label.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+label.f>span{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+input[type=text],input[type=date],select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%;min-width:0}
+textarea{min-height:76px;resize:vertical}
+input.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,.tab:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px}
+.chk input{width:18px;height:18px;accent-color:var(--accent)}
+.btn{font:inherit;font-weight:600;border-radius:8px;padding:10px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-align:center}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.pri:hover{filter:brightness(1.06)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--accent);padding-inline:8px}
+.btn.small{padding:6px 10px;font-size:13px}
+.btn.danger{color:var(--bad)}
+.btn[disabled]{opacity:.5;cursor:default}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.note{font-size:13px;color:var(--muted);border-left:3px solid var(--line);padding-left:10px;max-width:68ch}
+.banner{background:var(--accent-soft);border-radius:8px;padding:10px 12px;font-size:14px}
+
+/* status pills */
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.st-ok{color:var(--ok);background:var(--ok-soft)}
+.st-let{color:var(--warn);background:var(--warn-soft)}
+.st-nok{color:var(--bad);background:var(--bad-soft)}
+.st-open{color:var(--open);background:var(--open-soft)}
+
+/* home list */
+.klist{display:flex;flex-direction:column;gap:10px}
+.kcard{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;cursor:pointer;text-align:left;width:100%;font:inherit;color:inherit}
+.kcard:hover{border-color:var(--muted)}
+.kcard img,.kcard .ph{width:56px;height:56px;border-radius:8px;object-fit:cover;flex:none;background:var(--sunk)}
+.kcard .ph{display:grid;place-items:center;font-family:var(--f-display);font-weight:700;color:var(--muted);font-size:20px}
+.kcard .body{flex:1;min-width:0}
+.kcard .body .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kcard .body .s{font-size:13px;color:var(--muted)}
+.empty{border:1.5px dashed var(--line);border-radius:var(--r);padding:20px;display:flex;flex-direction:column;gap:12px}
+
+/* photos */
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.photo{position:relative;aspect-ratio:3/4;max-width:100%;border-radius:8px;overflow:hidden;background:var(--sunk)}
+.photo img{width:100%;height:100%;object-fit:cover;display:block}
+.photo button{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:16px;cursor:pointer}
+.photo .tag{position:absolute;left:4px;bottom:4px;font-size:10px;font-weight:600;background:rgba(0,0,0,.6);color:#fff;padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.05em}
+.aiout{font-size:13px;color:var(--muted);white-space:pre-wrap;max-height:120px;overflow:auto;font-family:var(--f-mono);background:var(--sunk);border-radius:8px;padding:8px}
+.find{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)}
+.find:first-child{border-top:0;padding-top:0}
+.find .tx{flex:1;min-width:0}
+
+/* rail / component strip — schematic of the kast */
+.rail{display:flex;gap:4px;overflow-x:auto;padding:10px;background:var(--sunk);border-radius:8px}
+.mod{flex:none;width:44px;min-height:70px;border-radius:5px;background:var(--surface);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:5px 2px;font-family:var(--f-mono);font-size:11px;text-align:center;line-height:1.15}
+.mod .k{font-weight:500}
+.mod .n{font-family:var(--f-display);font-weight:700;font-size:15px;color:var(--muted)}
+.mod.w2{width:92px}.mod.w4{width:184px}
+.mod.als{border-color:var(--accent);background:var(--accent-soft)}
+.mod.hs{border-color:var(--ink)}
+.mod .lnk{width:100%;height:4px;border-radius:2px}
+
+/* group cards */
+.gcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:10px}
+.gcard .gh{display:flex;align-items:center;gap:10px}
+.gnr{font-family:var(--f-display);font-weight:700;font-size:26px;line-height:1;min-width:34px;color:var(--accent)}
+.gh .sp{flex:1;min-width:0}
+.ggrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.ggrid .wide{grid-column:span 4}
+@media (max-width:460px){.ggrid{grid-template-columns:repeat(2,minmax(0,1fr))}.ggrid .wide{grid-column:span 2}}
+
+/* checks */
+.check{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:8px;border-left-width:4px}
+.check.b-ok{border-left-color:var(--ok)}.check.b-nok{border-left-color:var(--bad)}.check.b-let{border-left-color:var(--warn)}.check.b-open{border-left-color:var(--line)}
+.check .ch{display:flex;gap:10px;align-items:flex-start}
+.check .ch .tx{flex:1;min-width:0}
+.check .ref{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;font-weight:600;border:0;background:var(--surface);color:var(--muted);padding:6px 12px;cursor:pointer;border-left:1px solid var(--line)}
+.seg button:first-child{border-left:0}
+.seg button.on.v-ok{background:var(--ok);color:var(--surface)}
+.seg button.on.v-nok{background:var(--bad);color:var(--surface)}
+.seg button.on.v-nvt{background:var(--open);color:var(--surface)}
+.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.sbox{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px;text-align:center}
+.sbox .v{font-family:var(--f-display);font-weight:700;font-size:28px;line-height:1}
+.sbox .l{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-top:4px}
+
+/* measurement table */
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table.t{border-collapse:collapse;width:100%;font-size:14px}
+table.t th,table.t td{padding:8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+table.t th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;background:var(--sunk);white-space:nowrap}
+table.t tr:last-child td{border-bottom:0}
+table.t td.n{font-family:var(--f-display);font-weight:700;font-size:18px;color:var(--accent)}
+table.t input{width:80px;padding:7px 8px}
+.cell{display:flex;flex-direction:column;gap:3px}
+.inrow{display:flex;gap:4px;align-items:center}
+.snap{flex:none;width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer;display:grid;place-items:center;padding:0}
+.snap:hover{color:var(--accent);border-color:var(--accent)}
+.snap svg{width:18px;height:18px}
+.snap.busy{color:var(--accent);border-color:var(--accent)}
+@media (prefers-reduced-motion:no-preference){.snap.busy svg{animation:pulse 1s ease-in-out infinite}@keyframes pulse{50%{opacity:.3}}}
+.flash{outline:2px solid var(--ok);outline-offset:1px}
+.lim{font-size:11px;color:var(--muted);font-family:var(--f-mono);white-space:nowrap}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-left:4px;vertical-align:middle}
+.d-ok{background:var(--ok)}.d-nok{background:var(--bad)}.d-let{background:var(--warn)}.d-open{background:transparent;border:1px solid var(--line)}
+
+/* report preview */
+.gv{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.gv .gvh{background:var(--ink);color:var(--surface);padding:10px 14px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
+.gv .gvh h3{color:var(--surface)}
+.dlrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+
+/* confirm sheet */
+.sheet{position:fixed;inset:0;z-index:20;background:rgba(10,14,18,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheet .in{background:var(--surface);width:100%;max-width:520px;border-radius:14px 14px 0 0;padding:18px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:12px}
+
+/* tabbar */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+nav.tabs .in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(6,1fr)}
+.tab{font:inherit;border:0;background:transparent;color:var(--muted);padding:9px 2px 10px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;position:relative}
+.tab .ico{font-family:var(--f-display);font-weight:700;font-size:13px;letter-spacing:.01em;text-transform:uppercase}
+@media (min-width:480px){.tab .ico{font-size:15px;letter-spacing:.04em}}
+.tab .cnt{font-size:11px;font-family:var(--f-mono)}
+.tab.on{color:var(--accent)}
+.tab.on::before{content:"";position:absolute;top:-1px;left:22%;right:22%;height:3px;background:var(--accent);border-radius:0 0 3px 3px}
+/* woning */
+.vd{font-family:var(--f-display);font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:8px}
+.room{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.room.openr{border-color:var(--accent)}
+.rhead{display:flex;align-items:center;gap:10px;width:100%;padding:12px;background:transparent;border:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
+.rhead .nm{flex:1;min-width:0}
+.rhead .nm b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rhead .chev{color:var(--muted);font-size:18px;transition:transform .15s}
+.room.openr .rhead .chev{transform:rotate(90deg)}
+.rbody{padding:0 12px 14px;display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line);padding-top:14px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:5px 11px;cursor:pointer;font-family:var(--f-mono)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.fotos{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.fthumb{position:relative;width:64px;height:64px;border-radius:6px;overflow:hidden;background:var(--sunk)}
+.fthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.fthumb button{position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;font-size:13px;line-height:1}
+.mp{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto;gap:6px;align-items:end}
+.mp .lim{grid-column:auto}
+@media (max-width:520px){.mp{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.mp .wide{grid-column:span 2}}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--ink);color:var(--surface);padding:10px 14px;border-radius:8px;font-size:14px;max-width:90vw}
+@media (prefers-reduced-motion:no-preference){.toast{animation:up .2s ease-out}@keyframes up{from{transform:translate(-50%,8px);opacity:0}}}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="sheet" hidden></div>
+<div id="toast" class="toast" hidden></div>
+<input id="snapin" type="file" accept="image/*" capture="environment" hidden>
+<input id="fotoin" type="file" accept="image/*" hidden>
+
+<script>
+"use strict";
+/* ---------- constanten ---------- */
+const DEFAULT_GRENS = {maxGroepenPerAls:4, risoMin:1.0, testspanning:500, t1:300, t5:40, raMax:166, u0:230};
+const KAR_K = {B:5, C:10, D:20};
+const MANUAL = [
+  {k:"m1", t:"Aanrakingsveilig: afdekplaten, afdekstroken en blindplaten aanwezig", ref:"416"},
+  {k:"m2", t:"Groepen en aardlekschakelaars gemerkt; groepenverklaring in de kast", ref:"514 / 514.9"},
+  {k:"m3", t:"Kleurcodering aders: bruin/zwart/grijs fase, blauw N, groen-geel PE", ref:"514.3"},
+  {k:"m4", t:"Beschermingsleidingen op de aardrail, één ader per klem, goed vast", ref:"543 / 526"},
+  {k:"m5", t:"Hoofdaardrail en hoofdvereffening (water, gas, cv) aanwezig", ref:"411.3.1.2 / 544.1"},
+  {k:"m6", t:"Aderdoorsnede passend bij beveiliging (bijv. 2,5 mm² bij B16)", ref:"433 / 523"},
+  {k:"m7", t:"Verbindingen vast, isolatie onbeschadigd, kabeldoorvoer en trekontlasting in orde", ref:"522 / 526"},
+  {k:"m8", t:"Kast bereikbaar, vrije ruimte voor bediening en onderhoud", ref:"513"},
+  {k:"m9", t:"Vaste toestellen op eigen groep (wasmachine, droger, vaatwasser, oven, kookplaat)", ref:"woningpraktijk"},
+  {k:"m10", t:"3-fase: belasting redelijk verdeeld over L1, L2, L3", ref:"advies"},
+  {k:"m11", t:"Reserveruimte aanwezig voor uitbreiding", ref:"advies"}
+];
+const VERDIEPINGEN = ["Kelder","Begane grond","1e verdieping","2e verdieping","Zolder","Buiten"];
+const SOORTEN = [["verblijf","Woon- of slaapkamer"],["verkeer","Hal, overloop, trap"],["keuken","Keuken"],["badkamer","Badkamer of douche"],["toilet","Toilet"],["techniek","Meterkast of techniekruimte"],["bijgebouw","Schuur, garage, berging"],["buiten","Buiten, tuin, gevel"]];
+const RC = {
+  alg:[
+    {k:"r_wcd", t:"Wandcontactdozen met randaarde, goed vast en werkend", ref:"411 / 553.1"},
+    {k:"r_mat", t:"Schakelmateriaal en inbouwdozen heel, vast en afgedekt", ref:"416 / 526"},
+    {k:"r_leid", t:"Leidingen ingebouwd of beschermd; geen losse of beschadigde kabels", ref:"522"},
+    {k:"r_verl", t:"Geen verlengsnoer of stekkerdoos als vaste aansluiting", ref:"advies"}],
+  keuken:[
+    {k:"k_eig", t:"Vaste toestellen (vaatwasser, oven, combimagnetron) op eigen groep", ref:"woningpraktijk"},
+    {k:"k_kook", t:"Kookplaat juist aangesloten: juiste groep(en), doorsnede en aansluitpunt", ref:"433 / 523"},
+    {k:"k_pos", t:"Wandcontactdozen niet direct boven kookplaat of spoelbak", ref:"512.2"}],
+  badkamer:[
+    {k:"b_zone", t:"Toestellen en schakelaars passend bij zone 0, 1 en 2 (IP-graad)", ref:"701.512.2"},
+    {k:"b_wcd", t:"Wandcontactdozen buiten zone 0, 1 en 2", ref:"701.512.3"},
+    {k:"b_als", t:"Alle stroomkringen in de badkamer achter 30 mA aardlek", ref:"701.411.3.3"},
+    {k:"b_ver", t:"Aanvullende vereffening waar nodig (metalen leidingen, bad)", ref:"701.415.2"}],
+  techniek:[
+    {k:"t_ver", t:"Hoofdvereffening water, gas en cv aangesloten op hoofdaardrail", ref:"411.3.1.2 / 544.1"},
+    {k:"t_aard", t:"Aardverbinding of aardelektrode in orde en bereikbaar", ref:"542"},
+    {k:"t_toe", t:"Kast en meetinrichting toegankelijk, niets ervoor of erin opgeslagen", ref:"513"}],
+  verkeer:[
+    {k:"v_rook", t:"Rookmelders aanwezig en werkend", ref:"Bouwbesluit"},
+    {k:"v_wis", t:"Verlichting trap of hal schakelbaar vanaf meerdere plekken", ref:"advies"}],
+  bijgebouw:[
+    {k:"o_mech", t:"Leidingen en materiaal beschermd tegen mechanische beschadiging", ref:"522.6"}],
+  buiten:[
+    {k:"o_ip", t:"Materiaal minimaal IP44 (spatwaterdicht)", ref:"512.2"},
+    {k:"o_kab", t:"Grondkabel of in mantelbuis, op voldoende diepte", ref:"522.8"},
+    {k:"o_als", t:"Buitenstroomkringen en wandcontactdozen achter 30 mA aardlek", ref:"411.3.3"},
+    {k:"o_laad", t:"Laadpunt: eigen groep en passende aardlekbeveiliging (type A met DC-detectie of type B)", ref:"722"}]
+};
+function roomChecks(r){
+  if (r.soort==="buiten") return RC.buiten;
+  if (r.soort==="bijgebouw") return RC.alg.concat(RC.bijgebouw, RC.buiten.slice(0,3));
+  return RC.alg.concat(RC[r.soort]||[]);
+}
+function nieuweRuimte(naam, soort, verdieping){ return {id:"r"+Math.random().toString(36).slice(2,8), naam, soort, verdieping, groepen:[], checks:{}, mp:[], opm:""}; }
+function standaardRuimtes(){
+  return [["Hal","verkeer","Begane grond"],["Toilet","toilet","Begane grond"],["Woonkamer","verblijf","Begane grond"],["Keuken","keuken","Begane grond"],["Meterkast","techniek","Begane grond"],
+    ["Overloop","verkeer","1e verdieping"],["Slaapkamer 1","verblijf","1e verdieping"],["Slaapkamer 2","verblijf","1e verdieping"],["Slaapkamer 3","verblijf","1e verdieping"],["Badkamer","badkamer","1e verdieping"],
+    ["Zolder","verblijf","Zolder"],["Tuin en gevel","buiten","Buiten"]].map(a=>nieuweRuimte(...a));
+}
+const ST_LABEL = {ok:"In orde", let:"Let op", nok:"Afwijking", open:"Open"};
+
+/* ---------- state ---------- */
+let LIST = [];          // alle keuringen
+let K = null;           // huidige keuring
+let VIEW = "home";
+let PHOTOS = [];        // {blob,url,kind}
+let AI = {busy:false, text:"", err:"", result:null, ctl:null};
+let store = {kind:"local"};
+let sampleFn = null, sampleImg = false, dlFn = null;
+let loaded = false, saveState = "";
+let pending = null;  // confirm sheet
+let OPEN_ROOM = null, FOTO_T = null, assetsFn = null;
+let SNAP = {busy:null, path:null, label:"", unit:"", id:""};
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num = v => { if (v === "" || v == null) return null; const n = parseFloat(String(v).replace(",", ".").replace(/^\s*[<>≥≤]\s*/, "")); return isFinite(n) ? n : null; };
+const fmt = (n, d=2) => n == null ? "" : String(+n.toFixed(d)).replace(".", ",");
+const today = () => new Date().toISOString().slice(0,10);
+const nlDate = s => { if(!s) return ""; const [y,m,d]=s.split("-"); return `${d}-${m}-${y}`; };
+const clone = o => JSON.parse(JSON.stringify(o));
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.hidden=false; clearTimeout(toast.h); toast.h=setTimeout(()=>t.hidden=true,2600); }
+function getPath(o,p){ return p.split(".").reduce((a,k)=>a==null?a:a[k],o); }
+function setPath(o,p,v){ const ks=p.split("."); let a=o; for(let i=0;i<ks.length-1;i++){ if(a[ks[i]]==null) a[ks[i]]={}; a=a[ks[i]]; } a[ks[ks.length-1]]=v; }
+
+function nieuweKeuring(){
+  return {id:"k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), created:Date.now(), updated:Date.now(), voorbeeld:false,
+    adres:"", opdrachtgever:"", datum:today(), soort:"nieuw", installateur:"", stelsel:"TN-C-S", aansluiting:"3-fase",
+    ruimtes:[], hs:{aanwezig:true, polen:4, In:40}, overspanning:"onbekend", bijz:{laadpaal:false, pv:false, wp:false, inductie:false},
+    als:[], groepen:[], checks:{}, ai:null, thumb:"", ra:"", instr:{type:"Fluke 1664 FC", serienr:"", kalibratie:""},
+    grens:{...DEFAULT_GRENS}, opmerkingen:""};
+}
+function voorbeeld(){
+  const k = nieuweKeuring();
+  Object.assign(k, {voorbeeld:true, adres:"Voorbeeldstraat 12, Nieuwkoop", opdrachtgever:"Voorbeeld", soort:"renovatie"});
+  k.hs = {aanwezig:true, polen:4, In:40};
+  k.als = [{id:"A1", polen:4, In:40, idn:30, type:"?", Ia:"", t1:"", t5:""},{id:"A2", polen:4, In:40, idn:30, type:"?", Ia:"", t1:"", t5:""}];
+  const om = ["Verlichting beg. grond","Woonkamer wcd","Keuken wcd","Kookgroep L1","Kookgroep L2","Wasmachine","Slaapkamer 1","Slaapkamer 2","Zolder"];
+  k.groepen = om.map((o,i)=>({nr:i+1, kar:"B", In:16, polen:"1P+N", als:i<4?"A1":"A2", omschr:o, mm2:"2,5", riso:"", zs:"", rpe:""}));
+  k.ai = {datum:Date.now(), advies:"Maak close-ups per rij om type aardlekschakelaar en automaat-types te kunnen lezen.",
+    bevindingen:[
+      {ernst:"let op", tekst:"Geen overspanningsbeveiliging zichtbaar; beoordelen bij renovatie."},
+      {ernst:"let op", tekst:"Wago-klem met beschermingsleidingen links in de kast; controleer of de PE-doorverbinding bewust en correct is."},
+      {ernst:"let op", tekst:"Onderin lijkt een groene (niet groen-gele) ader te lopen; mogelijk oude beschermingsleiding."},
+      {ernst:"info", tekst:"Positie 3–4 op rij 1 wijken af in uitvoering; mogelijk kookgroep of vervangen automaat."},
+      {ernst:"info", tekst:"Type aardlekschakelaar (A/AC) niet leesbaar op deze foto."}
+    ]};
+  return k;
+}
+
+/* ---------- opslag (IndexedDB op het toestel) ---------- */
+const DB_NAME = "kastkeur", DB_VER = 1;
+let _db = null;
+function idb(){
+  if (_db) return Promise.resolve(_db);
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, DB_VER);
+    r.onupgradeneeded = () => { const d = r.result; if (!d.objectStoreNames.contains("keuringen")) d.createObjectStore("keuringen", {keyPath:"id"}); if (!d.objectStoreNames.contains("fotos")) d.createObjectStore("fotos"); };
+    r.onsuccess = () => { _db = r.result; res(_db); }; r.onerror = () => rej(r.error);
+  });
+}
+async function tx(storeName, mode, fn){
+  const d = await idb();
+  return new Promise((res, rej) => { const t = d.transaction(storeName, mode); const st = t.objectStore(storeName); let out; const q = fn(st); if (q) q.onsuccess = () => { out = q.result; }; t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); });
+}
+const dbAll = () => tx("keuringen","readonly", st => st.getAll());
+const dbPut = k => tx("keuringen","readwrite", st => st.put(k));
+const dbDel = id => tx("keuringen","readwrite", st => st.delete(id));
+const fotoPut = (id, blob) => tx("fotos","readwrite", st => st.put(blob, id));
+const fotoGet = id => tx("fotos","readonly", st => st.get(id));
+const fotoDel = id => tx("fotos","readwrite", st => st.delete(id));
+const fotoKeys = () => tx("fotos","readonly", st => st.getAllKeys());
+
+/* ---------- instellingen ---------- */
+const SET_KEY = "kastkeur-instellingen";
+const MODELLEN = [["claude-sonnet-5-5","Claude Sonnet 5.5 (aanbevolen)"],["claude-opus-5-5","Claude Opus 5.5 (nauwkeuriger, duurder)"],["claude-haiku-5-5","Claude Haiku 5.5 (snel, goedkoop)"]];
+let SET = {apiKey:"", model:"claude-sonnet-5-5", installateur:"", pdfDelen:true};
+try { SET = {...SET, ...JSON.parse(localStorage.getItem(SET_KEY) || "{}")}; } catch(e){}
+function saveSet(){ try { localStorage.setItem(SET_KEY, JSON.stringify(SET)); } catch(e){} }
+
+/* ---------- Claude API ---------- */
+function blobToB64(b){ return blobToData(b).then(d => d.split(",")[1]); }
+function blobToData(b){ return new Promise((res,rej)=>{ const fr = new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(b); }); }
+function parseJsonLoose(t){
+  try { return JSON.parse(t); } catch(e){}
+  const f = t.match(/```(?:json)?\s*([\s\S]*?)```/); if (f) { try { return JSON.parse(f[1]); } catch(e){} }
+  const i = Math.min(...["{","["].map(c => { const k = t.indexOf(c); return k<0?Infinity:k; })), j = Math.max(t.lastIndexOf("}"), t.lastIndexOf("]"));
+  if (isFinite(i) && j > i) { try { return JSON.parse(t.slice(i, j+1)); } catch(e){} }
+  throw {code:"invalid_json"};
+}
+async function callClaude(prompt, images, signal){
+  if (!SET.apiKey) throw {code:"no_key"};
+  if (!navigator.onLine) throw {code:"offline"};
+  const content = [];
+  for (const im of (images||[])) { const small = await shrink(im, 2400, 0.85); content.push({type:"image", source:{type:"base64", media_type:"image/jpeg", data: await blobToB64(small || im)}}); }
+  content.push({type:"text", text: prompt + "\n\nAntwoord alleen met de JSON, zonder uitleg ervoor of erna."});
+  let r;
+  try {
+    r = await fetch("https://api.anthropic.com/v1/messages", {method:"POST", signal,
+      headers:{"content-type":"application/json","x-api-key":SET.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body: JSON.stringify({model: SET.model, max_tokens: 8000, messages:[{role:"user", content}]})});
+  } catch(e) { if (e && e.name === "AbortError") throw {code:"cancelled"}; throw {code:"offline"}; }
+  if (!r.ok) { const code = r.status===401||r.status===403 ? "auth" : r.status===429 ? "rate_limited" : r.status===529||r.status>=500 ? "overloaded" : r.status===402||r.status===400 ? "bad_request" : "upstream_error";
+    let msg = ""; try { msg = (await r.json()).error?.message || ""; } catch(e){} throw {code, message: msg}; }
+  const j = await r.json();
+  const text = (j.content||[]).filter(c => c.type==="text").map(c => c.text).join("");
+  if (j.stop_reason === "max_tokens") throw {code:"invalid_json"};
+  return parseJsonLoose(text);
+}
+const sampleProxy = { json: (prompt, opts={}) => callClaude(prompt, opts.images, opts.signal) };
+
+/* ---------- bestanden opslaan of delen ---------- */
+async function saveFile(data, filename){
+  const blob = data instanceof Blob ? data : new Blob([data]);
+  const type = filename.endsWith(".pdf") ? "application/pdf" : "application/json";
+  const file = new File([blob], filename, {type});
+  if (SET.pdfDelen && type==="application/pdf" && navigator.canShare && navigator.canShare({files:[file]})) {
+    try { await navigator.share({files:[file], title: filename}); return {status:"saved"}; }
+    catch(e) { if (e && e.name === "AbortError") throw {code:"declined"}; }
+  }
+  const u = URL.createObjectURL(file); const a = document.createElement("a"); a.href = u; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u), 4000);
+  return {status:"saved"};
+}
+
+/* ---------- foto's van afwijkingen ---------- */
+const FURL = {};
+async function loadFotoUrls(k){
+  if (!k) return; let changedAny = false;
+  for (const r of (k.ruimtes||[])) for (const c of Object.values(r.checks||{})) for (const f of (c.f||[])) {
+    if (f.id && !FURL[f.id]) { try { const b = await fotoGet(f.id); if (b) { FURL[f.id] = URL.createObjectURL(b); changedAny = true; } } catch(e){} }
+  }
+  if (changedAny && K === k) { render.keepScroll = true; render(); }
+}
+const fotoSrc = f => f.data || FURL[f.id] || "";
+const assetsLocal = {
+  upload: async blob => { const id = "f" + Date.now().toString(36) + Math.random().toString(36).slice(2,7); await fotoPut(id, blob); FURL[id] = URL.createObjectURL(blob); return {id, url:""}; },
+  delete: async id => { await fotoDel(id); if (FURL[id]) { URL.revokeObjectURL(FURL[id]); delete FURL[id]; } }
+};
+
+async function initRuntime(){
+  sampleFn = sampleProxy; sampleImg = true; AI.max = 5;
+  dlFn = { save: ({filename, data}) => saveFile(data, filename) };
+  assetsFn = assetsLocal;
+  store = {kind:"idb"};
+  try { LIST = (await dbAll()).sort((a,b)=>(b.updated||0)-(a.updated||0)); }
+  catch(e) { LIST = []; toast("Opslag op dit toestel is niet beschikbaar."); }
+  loaded = true; render();
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
+}
+function loadLocal(){ }
+
+let saveTimer = null, saveChain = Promise.resolve();
+function changed(){ if(!K) return; K.updated = Date.now(); setSave("Wijzigingen…"); clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 700); }
+function saveNow(){
+  if(!K) return; clearTimeout(saveTimer); const snap = clone(K);
+  saveChain = saveChain.then(async () => {
+    try {
+      await dbPut(snap);
+      const i = LIST.findIndex(x=>x.id===snap.id); if(i>=0) LIST[i]=snap; else LIST.unshift(snap);
+      LIST.sort((a,b)=>(b.updated||0)-(a.updated||0));
+      setSave("Opgeslagen");
+    } catch(e){ setSave("Niet opgeslagen"); toast("Opslaan mislukt. Is de opslag van je telefoon vol?"); }
+  });
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveNow(); });
+function setSave(s){ saveState = s; const el = $("#savest"); if (el) el.textContent = s; }
+async function deleteKeuring(id){
+  const k = LIST.find(x=>x.id===id) || K;
+  try {
+    await dbDel(id);
+    for (const r of (k?.ruimtes||[])) for (const c of Object.values(r.checks||{})) for (const f of (c.f||[])) if (f.id) await assetsLocal.delete(f.id).catch(()=>{});
+    LIST = LIST.filter(x=>x.id!==id);
+  } catch(e){ toast("Verwijderen lukte niet."); return; }
+  K = null; VIEW = "home"; render(); toast("Keuring verwijderd");
+}
+
+/* ---------- back-up ---------- */
+async function exportBackup(){
+  saveNow(); await saveChain;
+  const fotos = {};
+  for (const id of await fotoKeys()) { try { fotos[id] = await blobToData(await fotoGet(id)); } catch(e){} }
+  const data = JSON.stringify({app:"kastkeur", versie:1, gemaakt:new Date().toISOString(), keuringen: LIST, fotos});
+  try { await saveFile(new Blob([data], {type:"application/json"}), `Kastkeur back-up ${today()}.json`); toast("Back-up opgeslagen"); } catch(e){}
+}
+async function importBackup(file){
+  let j; try { j = JSON.parse(await file.text()); } catch(e) { toast("Dit is geen geldig back-upbestand."); return; }
+  if (!j || j.app !== "kastkeur" || !Array.isArray(j.keuringen)) { toast("Dit is geen Kastkeur-back-up."); return; }
+  let n = 0;
+  for (const [id, d] of Object.entries(j.fotos||{})) { try { const b = await (await fetch(d)).blob(); await fotoPut(id, b); } catch(e){} }
+  for (const k of j.keuringen) { if (k && k.id) { await dbPut(k); n++; } }
+  LIST = (await dbAll()).sort((a,b)=>(b.updated||0)-(a.updated||0));
+  render(); toast(`${n} keuring(en) teruggezet`);
+}
+
+/* ---------- beoordeling ---------- */
+function alsById(id){ return K.als.find(a=>a.id===id); }
+function zsLimit(g){ const k = KAR_K[g.kar]; const In = num(g.In); return (k && In) ? K.grens.u0/(k*In) : null; }
+function stRiso(v){ v=num(v); if(v==null) return "open"; return v >= num(K.grens.risoMin) ? "ok" : "nok"; }
+function stZs(g){ const v=num(g.zs); if(v==null) return "open"; const lim=zsLimit(g); if(lim==null) return "open"; if(v<=lim) return "ok";
+  const a=alsById(g.als); if(a && num(a.idn) && v <= 50/(num(a.idn)/1000)) return "let"; return "nok"; }
+function stIa(a){ const v=num(a.Ia), d=num(a.idn); if(v==null||!d) return "open"; return (v>=0.5*d && v<=d) ? "ok" : "nok"; }
+function stT(v,lim){ v=num(v); if(v==null) return "open"; return v <= num(lim) ? "ok" : "nok"; }
+function stRa(){ const v=num(K.ra); if(v==null) return "open"; if(v<=num(K.grens.raMax)) return "ok"; return K.stelsel==="TT" ? "nok" : "let"; }
+
+function grpByNr(nr){ return K.groepen.find(g=>String(g.nr)===String(nr)); }
+function stMp(p){ const g = grpByNr(p.groep); if (!g) return num(p.zs)==null ? "open" : "let"; return stZs({...g, zs:p.zs}); }
+function roomSt(r){ const c = roomChecks(r).map(x=>r.checks[x.k]?.s||""); const n = c.filter(s=>s==="nok").length; const o = c.filter(s=>!s).length;
+  const mpn = r.mp.filter(p=>stMp(p)==="nok").length; return {nok:n+mpn, open:o, tot:c.length}; }
+function measureStats(){
+  let tot=0, done=0, nok=0;
+  const add = s => { tot++; if(s!=="open") done++; if(s==="nok") nok++; };
+  K.groepen.forEach(g => { add(stRiso(g.riso)); add(stZs(g)); });
+  K.als.forEach(a => { add(stIa(a)); add(stT(a.t1,K.grens.t1)); add(stT(a.t5,K.grens.t5)); });
+  add(stRa());
+  (K.ruimtes||[]).forEach(r => r.mp.forEach(p => add(stMp(p))));
+  return {tot, done, nok};
+}
+
+function autoChecks(){
+  const out = [];
+  out.push({k:"a_hs", t:"Hoofdschakelaar aanwezig", ref:"462 / 537",
+    st: K.hs.aanwezig ? "ok" : "nok", d: K.hs.aanwezig ? `${K.hs.polen}-polig, ${K.hs.In||"?"} A` : "Geen hoofdschakelaar opgegeven."});
+  const zonder = K.groepen.filter(g => !g.als);
+  const nietGevonden = K.groepen.filter(g => g.als && !alsById(g.als));
+  out.push({k:"a_als", t:"Alle eindgroepen achter een aardlekschakelaar ≤ 30 mA", ref:"411.3.3",
+    st: !K.groepen.length ? "open" : (zonder.length||nietGevonden.length) ? "open" : K.groepen.every(g => num(alsById(g.als).idn) <= 30) ? "ok" : "nok",
+    d: !K.groepen.length ? "Nog geen groepen." : zonder.length ? `Groep ${zonder.map(g=>g.nr).join(", ")} nog niet aan een aardlekschakelaar gekoppeld.` : "Elke groep is gekoppeld."});
+  const max = num(K.grens.maxGroepenPerAls);
+  const per = K.als.map(a => ({a, n:K.groepen.filter(g=>g.als===a.id).length}));
+  const over = per.filter(x => x.n > max);
+  out.push({k:"a_max", t:`Maximaal ${max} eindgroepen per aardlekschakelaar`, ref:"531.3 / woningpraktijk",
+    st: !K.als.length || zonder.length ? "open" : over.length ? "nok" : "ok",
+    d: per.length ? per.map(x=>`${x.a.id}: ${x.n}`).join(" · ") : "Nog geen aardlekschakelaars."});
+  const bijz = K.bijz.laadpaal || K.bijz.pv || K.bijz.wp;
+  const ac = K.als.filter(a => a.type==="AC"), onb = K.als.filter(a => !a.type || a.type==="?");
+  out.push({k:"a_type", t:"Type aardlekschakelaar passend (type A of B bij laadpaal, PV of warmtepomp)", ref:"531.3.3",
+    st: !bijz ? (onb.length ? "open" : "ok") : ac.length ? "nok" : onb.length ? "open" : "ok",
+    d: !bijz ? (onb.length ? `Type nog invullen bij ${onb.map(a=>a.id).join(", ")}.` : "Geen bijzondere verbruikers opgegeven.")
+       : ac.length ? `${ac.map(a=>a.id).join(", ")} is type AC.` : onb.length ? `Type onbekend bij ${onb.map(a=>a.id).join(", ")}.` : "In orde."});
+  out.push({k:"a_ovsp", t:"Overspanningsbeveiliging aanwezig of risico beoordeeld", ref:"443 / 534",
+    st: K.overspanning==="ja" ? "ok" : K.overspanning==="beoordeeld" ? "ok" : K.overspanning==="nee" ? "let" : "open",
+    d: {ja:"Aanwezig.", nee:"Niet aanwezig; leg de risicobeoordeling vast.", beoordeeld:"Niet nodig volgens risicobeoordeling.", onbekend:"Nog invullen op tabblad Kast."}[K.overspanning]});
+  const m = measureStats();
+  out.push({k:"a_meet", t:"Metingen compleet en binnen grenswaarden", ref:"6.4.3",
+    st: m.nok ? "nok" : m.done < m.tot ? "open" : "ok", d:`${m.done} van ${m.tot} metingen ingevuld${m.nok?`, ${m.nok} buiten grenswaarde`:""}.`});
+  return out;
+}
+function manualSt(k){ const s = K.checks[k]?.s; return s==="ok"?"ok":s==="nok"?"nok":s==="nvt"?"nvt":"open"; }
+function allChecks(){
+  const a = autoChecks().map(c => ({...c, auto:true}));
+  const m = MANUAL.map(c => ({...c, st:manualSt(c.k), opm:K.checks[c.k]?.o||""}));
+  return a.concat(m);
+}
+function roomCheckRows(){
+  const out = [];
+  (K.ruimtes||[]).forEach(r => roomChecks(r).forEach(c => { const s = r.checks[c.k]?.s||""; out.push({r, c, st: s==="ok"?"ok":s==="nok"?"nok":s==="nvt"?"nvt":"open", opm:r.checks[c.k]?.o||"", fotos:r.checks[c.k]?.f||[]}); }));
+  return out;
+}
+function checkSummary(){
+  const c = allChecks().concat(roomCheckRows()); const r = {ok:0, let:0, nok:0, open:0};
+  c.forEach(x => { if (x.st==="nvt") return; r[x.st] = (r[x.st]||0)+1; });
+  return r;
+}
+
+/* ---------- render ---------- */
+const pill = s => `<span class="pill st-${s==="nvt"?"open":s}">${s==="nvt"?"N.v.t.":ST_LABEL[s]}</span>`;
+function sel(id, path, val, opts){ return `<select id="${id}" data-b="${path}" data-re>${opts.map(o=>{const [v,l]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}"${String(val)===String(v)?" selected":""}>${esc(l)}</option>`;}).join("")}</select>`; }
+function inp(id, path, val, extra=""){ return `<input type="text" id="${id}" data-b="${path}" value="${esc(val)}" ${extra}>`; }
+function ninp(id, path, val, extra=""){ return `<input type="text" inputmode="decimal" class="num" id="${id}" data-b="${path}" value="${esc(val)}" ${extra}>`; }
+
+const SNAP_ON = false; // display aflezen uitgeschakeld (kost Claude-gebruik)
+const CAM_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>`;
+function minp(id, path, val, label, unit, extra=""){
+  const field = ninp(id, path, val, extra);
+  if (!SNAP_ON || !(sampleFn && sampleImg)) return field;
+  return `<span class="inrow">${field}<button class="snap${SNAP.busy===path?" busy":""}" data-snap="${esc(path)}" data-lbl="${esc(label)}" data-unit="${esc(unit)}" data-for="${id}" aria-label="Foto van display voor ${esc(label)}" title="Waarde van display aflezen">${CAM_SVG}</button></span>`;
+}
+function render(){
+  const app = $("#app");
+  const focusId = document.activeElement && document.activeElement.id;
+  const y = window.scrollY;
+  if (VIEW === "settings") { app.innerHTML = renderSettings(); }
+  else if (VIEW === "home" || !K) { app.innerHTML = renderHome(); }
+  else {
+    const body = {kast:renderKast, groepen:renderGroepen, woning:renderWoning, keuring:renderKeuring, metingen:renderMetingen, rapport:renderRapport}[VIEW]();
+    app.innerHTML = renderTop() + `<main><div class="wrap">${K.voorbeeld?`<div class="banner" style="margin-bottom:16px">Dit is een voorbeeldkeuring op basis van een echte groepenkast. Pas alles gerust aan of begin een nieuwe.</div>`:""}${body}</div></main>` + renderTabs();
+  }
+  if (focusId) { const el = document.getElementById(focusId); if (el) { el.focus({preventScroll:true}); } }
+  if (render.keepScroll) window.scrollTo(0, y);
+  render.keepScroll = false;
+  renderSheet();
+}
+function renderTop(){
+  return `<header class="top"><div class="wrap">
+    <button class="btn ghost" data-act="home" aria-label="Terug naar overzicht">←</button>
+    <div class="ttl"><div class="t">${esc(K.adres || "Nieuwe keuring")}</div><div class="s">${nlDate(K.datum)} · ${K.soort==="nieuw"?"Nieuwe installatie":"Renovatie"}</div></div>
+    <div class="savest" id="savest">${esc(saveState)}</div></div></header>`;
+}
+function renderTabs(){
+  const cs = checkSummary(), m = measureStats();
+  const tabs = [["kast","Kast", PHOTOS.length?`${PHOTOS.length} foto`:"foto"],["groepen","Groepen", K.groepen.length],["woning","Woning", (K.ruimtes||[]).length?`${K.ruimtes.length} rmt`:"–"],["keuring","Keuring", cs.nok?`${cs.nok} afw.`:`${cs.open} open`],["metingen","Metingen",`${m.done}/${m.tot}`],["rapport","Rapport","pdf"]];
+  return `<nav class="tabs" aria-label="Stappen"><div class="in">${tabs.map(([v,l,c])=>`<button class="tab${VIEW===v?" on":""}" data-view="${v}"${VIEW===v?' aria-current="page"':""}><span class="ico">${l}</span><span class="cnt">${esc(c)}</span></button>`).join("")}</div></nav>`;
+}
+
+let INSTALL = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); INSTALL = e; if (VIEW==="home") render(); });
+window.addEventListener("appinstalled", () => { INSTALL = null; toast("Kastkeur is geïnstalleerd"); if (VIEW==="home") render(); });
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
+
+function loadFotoUrlsReset(){ for (const k in FURL) { URL.revokeObjectURL(FURL[k]); delete FURL[k]; } }
+function renderSettings(){
+  const ks = SET.apiKey ? SET.apiKey.slice(0,10) + "…" + SET.apiKey.slice(-4) : "";
+  return `<header class="top"><div class="wrap"><button class="btn ghost" data-act="home" aria-label="Terug">←</button><div class="ttl"><div class="t">Instellingen</div></div></div></header>
+  <main class="home"><div class="wrap">
+  <div class="sec"><h2>Claude</h2>
+    <p class="lead">Voor het aflezen van foto's van de groepenkast. Elke analyse kost een paar cent van je tegoed op console.anthropic.com.</p>
+    <div class="panel stack">
+      <label class="f"><span>API-sleutel</span><input type="password" id="s_key" value="" placeholder="${ks?esc(ks):"sk-ant-…"}" autocomplete="off" spellcheck="false"></label>
+      <div class="row"><button class="btn pri small" data-act="savekey">Sleutel opslaan</button>${SET.apiKey?`<button class="btn small" data-act="testkey">Test verbinding</button><button class="btn ghost small danger" data-act="delkey">Verwijder sleutel</button>`:""}</div>
+      <label class="f"><span>Model</span><select id="s_model">${MODELLEN.map(([v,l])=>`<option value="${v}"${SET.model===v?" selected":""}>${esc(l)}</option>`).join("")}</select></label>
+      <p class="note" style="margin:0">De sleutel blijft alleen op deze telefoon en wordt alleen naar Anthropic gestuurd. Deel je telefoon niet ontgrendeld met anderen.</p>
+    </div></div>
+  <div class="sec"><h2>Standaardgegevens</h2>
+    <div class="panel stack">
+      <label class="f"><span>Naam installateur</span><input type="text" id="s_inst" value="${esc(SET.installateur)}" placeholder="Wordt ingevuld bij nieuwe keuringen"></label>
+      <label class="chk"><input type="checkbox" id="s_delen" ${SET.pdfDelen?"checked":""}> PDF via deelmenu (Mail, WhatsApp, Bestanden) in plaats van Downloads</label>
+    </div></div>
+  <div class="sec"><h2>Back-up</h2>
+    <p class="lead">Je keuringen staan alleen op deze telefoon. Bewaar een back-up op een veilige plek, bijvoorbeeld in Google Drive.</p>
+    <div class="row"><button class="btn" data-act="backup">Back-up maken</button><label class="btn" for="s_imp">Back-up terugzetten</label><input id="s_imp" type="file" accept="application/json,.json" hidden></div>
+  </div>
+  <p class="note" style="margin-top:26px">Kastkeur beta · ${LIST.length} keuring(en) op dit toestel</p>
+  </div></main>`;
+}
+function renderHome(){
+  const where = "Je keuringen staan op deze telefoon. Maak af en toe een back-up via Instellingen.";
+  let list;
+  if (!loaded) list = `<div class="empty"><div class="muted">Keuringen laden…</div></div>`;
+  else if (!LIST.length) list = `<div class="empty"><h3>Nog geen keuringen</h3>
+      <p class="muted" style="margin:0">Begin met een foto van de groepenkast. Claude leest de componenten af, jij controleert en vult de metingen aan. Daarna maak je het keuringsrapport, meetrapport en de groepenverklaring als PDF.</p>
+      <div class="row"><button class="btn pri" data-act="new">Nieuwe keuring</button><button class="btn" data-act="example">Voorbeeld openen</button></div></div>`;
+  else list = `<div class="klist">${LIST.map(k => {
+      const n = k.groepen?.length||0;
+      return `<button class="kcard" data-open="${esc(k.id)}">${k.thumb?`<img src="${k.thumb}" alt="">`:`<span class="ph">${n||"–"}</span>`}
+        <span class="body"><span class="t" style="display:block">${esc(k.adres||"Zonder adres")}${k.voorbeeld?' <span class="pill st-open">Voorbeeld</span>':""}</span>
+        <span class="s" style="display:block">${nlDate(k.datum)} · ${k.soort==="nieuw"?"Nieuw":"Renovatie"} · ${n} groepen · ${(k.als||[]).length} ALS</span></span></button>`;}).join("")}</div>`;
+  return `<header class="top"><div class="wrap"><div class="brand">Kast<b>keur</b></div><div class="ttl"><div class="s">Groepenkast keuren, meten en vastleggen</div></div>${INSTALL?`<button class="btn small pri" data-act="install">Installeren</button>`:""}<button class="btn small" data-act="settings">Instellingen</button></div></header>
+  <main class="home"><div class="wrap stack">
+    <div class="sec-h"><h2>Keuringen</h2>${LIST.length?`<div class="row"><button class="btn small" data-act="example">Voorbeeld</button><button class="btn pri small" data-act="new">Nieuwe keuring</button></div>`:""}</div>
+    ${list}
+    <p class="note">${where} Foto's van de kast worden alleen gebruikt voor de analyse; foto's bij afwijkingen worden wel bewaard. Grenswaarden en bepalingsnummers in deze beta zijn een hulpmiddel; controleer ze met je eigen exemplaar van NEN 1010.</p>
+  </div></main>`;
+}
+
+function renderKast(){
+  const photos = PHOTOS.map((p,i)=>`<div class="photo"><img src="${p.url}" alt="Foto ${i+1}"><span class="tag">${i===0?"Overzicht":"Close-up"}</span><button data-delphoto="${i}" aria-label="Foto verwijderen">×</button></div>`).join("");
+  const maxN = AI.max || 4;
+  let aiBlock;
+  if (!SET.apiKey) aiBlock = `<p class="note">Om foto's door Claude te laten aflezen, vul je eerst je API-sleutel in bij Instellingen. Groepen met de hand invullen kan altijd.</p><button class="btn small" data-act="settings" style="align-self:flex-start">Naar instellingen</button>`;
+  else if (!sampleImg) aiBlock = `<p class="note">Foto's naar Claude sturen is in deze weergave niet mogelijk. Vul de groepen met de hand in.</p>`;
+  else aiBlock = `<div class="row">
+      <button class="btn pri" data-act="analyse" ${(!PHOTOS.length||AI.busy)?"disabled":""}>${AI.busy?"Claude bekijkt de foto's…":"Analyseer foto's"}</button>
+      ${AI.busy?`<button class="btn" data-act="stop">Stop</button>`:""}
+      <span class="small muted">${PHOTOS.length?`${PHOTOS.length} van max. ${maxN} foto's`:"Voeg eerst een foto toe"}</span></div>
+      ${AI.busy?`<div class="aiout" id="aiout">Bezig… dit duurt meestal 20 tot 60 seconden.</div>`:""}
+      ${AI.err?`<p class="note" style="border-color:var(--bad)">${esc(AI.err)}</p>`:""}`;
+  const res = AI.result ? `<div class="panel stack"><div class="sec-h"><h3>Gevonden op de foto's</h3></div>
+      <div class="rail">${railHtml(AI.result.hsObj, AI.result.alsArr, AI.result.grpArr)}</div>
+      <p class="small" style="margin:0">${AI.result.grpArr.length} groepen, ${AI.result.alsArr.length} aardlekschakelaar(s)${AI.result.hsObj.aanwezig?`, hoofdschakelaar ${AI.result.hsObj.polen}P ${AI.result.hsObj.In||"?"} A`:""}.</p>
+      <div class="row"><button class="btn pri" data-act="apply">Overnemen in groepenlijst</button><button class="btn" data-act="discard">Negeren</button></div></div>` : "";
+  const bev = K.ai?.bevindingen?.length ? `<div class="sec"><div class="sec-h"><h2>Bevindingen uit foto</h2><span class="small muted">${K.ai.datum?new Date(K.ai.datum).toLocaleDateString("nl-NL"):""}</span></div>
+      <div class="panel">${K.ai.bevindingen.map(b=>`<div class="find">${pill(b.ernst==="afwijking"?"nok":b.ernst==="let op"?"let":"open")}<div class="tx">${esc(b.tekst)}</div></div>`).join("")}
+      ${K.ai.advies?`<div class="find"><span class="pill st-open">Tip</span><div class="tx">${esc(K.ai.advies)}</div></div>`:""}</div></div>` : "";
+  return `
+  <div class="sec"><div class="sec-h"><h2>Foto's van de kast</h2></div>
+    <p class="lead">Begin met één foto van de hele kast. Voeg daarna close-ups per rij toe, zodat Claude de kleine opdrukken (B16, 30 mA, type A) kan lezen.</p>
+    ${PHOTOS.length?`<div class="photos">${photos}</div>`:""}
+    <div class="row">
+      <label class="btn" for="cam">Foto maken</label><input id="cam" type="file" accept="image/*" capture="environment" hidden>
+      <label class="btn" for="gal">Uit galerij</label><input id="gal" type="file" accept="image/*" multiple hidden>
+    </div>
+    ${aiBlock}${res}
+  </div>
+  ${bev}
+  <div class="sec"><h2>Project</h2>
+    <div class="panel grid2">
+      <label class="f"><span>Adres</span>${inp("adres","adres",K.adres,'placeholder="Straat, huisnummer, plaats"')}</label>
+      <label class="f"><span>Opdrachtgever</span>${inp("opdr","opdrachtgever",K.opdrachtgever)}</label>
+      <label class="f"><span>Datum</span><input type="date" id="datum" data-b="datum" value="${esc(K.datum)}"></label>
+      <label class="f"><span>Soort werk</span>${sel("soort","soort",K.soort,[["nieuw","Nieuwe installatie"],["renovatie","Renovatie"]])}</label>
+      <label class="f"><span>Uitgevoerd door</span>${inp("inst","installateur",K.installateur)}</label>
+    </div></div>
+  <div class="sec"><h2>Installatie</h2>
+    <div class="panel stack">
+      <div class="grid3">
+        <label class="f"><span>Aansluiting</span>${sel("aansl","aansluiting",K.aansluiting,["1-fase","3-fase"])}</label>
+        <label class="f"><span>Stelsel</span>${sel("stelsel","stelsel",K.stelsel,["TN-C-S","TN-S","TT"])}</label>
+        <label class="f"><span>Overspanningsbev.</span>${sel("ovsp","overspanning",K.overspanning,[["onbekend","Nog bepalen"],["ja","Aanwezig"],["nee","Niet aanwezig"],["beoordeeld","Niet nodig (beoordeeld)"]])}</label>
+      </div>
+      <div class="grid3">
+        <label class="chk"><input type="checkbox" id="hsa" data-b="hs.aanwezig" data-re ${K.hs.aanwezig?"checked":""}> Hoofdschakelaar</label>
+        <label class="f"><span>Polen</span>${sel("hsp","hs.polen",K.hs.polen,[[2,"2-polig"],[4,"4-polig"]])}</label>
+        <label class="f"><span>Stroom (A)</span>${ninp("hsin","hs.In",K.hs.In)}</label>
+      </div>
+      <div><div class="small muted" style="margin-bottom:6px">Aanwezig in de woning</div>
+      <div class="row">${[["laadpaal","Laadpaal"],["pv","Zonnepanelen"],["wp","Warmtepomp"],["inductie","Inductiekookplaat"]].map(([k,l])=>`<label class="chk"><input type="checkbox" id="b_${k}" data-b="bijz.${k}" data-re ${K.bijz[k]?"checked":""}> ${l}</label>`).join("")}</div></div>
+    </div></div>
+  <div class="sec"><button class="btn danger" data-act="askdel" style="align-self:flex-start">Keuring verwijderen</button></div>`;
+}
+
+function railHtml(hs, als, grp){
+  const parts = [];
+  if (hs && hs.aanwezig) parts.push(`<div class="mod hs w${hs.polen==4?4:2}" title="Hoofdschakelaar"><span class="k">HS</span><span>${hs.In||"?"} A</span><span class="n">${hs.polen}P</span></div>`);
+  als.forEach(a => parts.push(`<div class="mod als w${a.polen==2?2:4}"><span class="k">${esc(a.id)}</span><span>${a.In||"?"} A · ${a.idn||"?"} mA</span><span class="n">type ${esc(a.type||"?")}</span></div>`));
+  grp.forEach(g => parts.push(`<div class="mod${/3P/.test(g.polen)?" w4":/2P/.test(g.polen)?" w2":""}"><span class="k">${esc(g.kar||"?")}${g.In||"?"}</span><span class="small muted">${esc(g.als||"–")}</span><span class="n">${g.nr}</span></div>`));
+  return parts.join("") || `<span class="small muted">Nog niets.</span>`;
+}
+
+function renderGroepen(){
+  const alsOpts = [["","Nog kiezen"]].concat(K.als.map(a=>[a.id,a.id]));
+  const alsCards = K.als.map((a,i)=>`<div class="gcard"><div class="gh"><span class="gnr">${esc(a.id)}</span><span class="sp small muted">Aardlekschakelaar · ${K.groepen.filter(g=>g.als===a.id).length} groepen</span><button class="btn ghost small danger" data-delals="${i}">Verwijder</button></div>
+    <div class="ggrid"><label class="f"><span>Polen</span>${sel(`ap${i}`,`als.${i}.polen`,a.polen,[[2,"2P"],[4,"4P"]])}</label>
+    <label class="f"><span>In (A)</span>${ninp(`ai${i}`,`als.${i}.In`,a.In)}</label>
+    <label class="f"><span>IΔn (mA)</span>${ninp(`ad${i}`,`als.${i}.idn`,a.idn,"data-re")}</label>
+    <label class="f"><span>Type</span>${sel(`at${i}`,`als.${i}.type`,a.type||"?",[["?","Onbekend"],"A","AC","B","F"])}</label></div></div>`).join("");
+  const gCards = K.groepen.map((g,i)=>`<div class="gcard"><div class="gh"><span class="gnr">${g.nr}</span>
+      <span class="sp">${inp(`go${i}`,`groepen.${i}.omschr`,g.omschr,'placeholder="Omschrijving, bijv. Keuken wcd" aria-label="Omschrijving"')}</span>
+      <button class="btn ghost small danger" data-delgrp="${i}" aria-label="Groep ${g.nr} verwijderen">×</button></div>
+    <div class="ggrid">
+      <label class="f"><span>Kar.</span>${sel(`gk${i}`,`groepen.${i}.kar`,g.kar,["B","C","D","?"])}</label>
+      <label class="f"><span>In (A)</span>${ninp(`gi${i}`,`groepen.${i}.In`,g.In,"data-re")}</label>
+      <label class="f"><span>Polen</span>${sel(`gp${i}`,`groepen.${i}.polen`,g.polen,["1P+N","2P","3P+N","1P","?"])}</label>
+      <label class="f"><span>Aardlek</span>${sel(`ga${i}`,`groepen.${i}.als`,g.als,alsOpts)}</label>
+      <label class="f"><span>Kabel mm²</span>${ninp(`gm${i}`,`groepen.${i}.mm2`,g.mm2)}</label>
+    </div></div>`).join("");
+  return `
+  <div class="sec"><div class="sec-h"><h2>Kastopbouw</h2></div>
+    <div class="rail" aria-label="Schematische weergave van de kast">${railHtml(K.hs, K.als, K.groepen)}</div>
+    <p class="small muted" style="margin:0">Kar. en stroom per groep, met daaronder de aardlekschakelaar waar de groep op zit.</p></div>
+  <div class="sec"><div class="sec-h"><h2>Aardlekschakelaars</h2><button class="btn small" data-act="addals">+ Aardlekschakelaar</button></div>
+    ${alsCards || `<div class="empty"><span class="muted">Nog geen aardlekschakelaars. Voeg ze toe of laat Claude de foto analyseren.</span></div>`}</div>
+  <div class="sec"><div class="sec-h"><h2>Eindgroepen</h2><button class="btn small" data-act="addgrp">+ Groep</button></div>
+    ${gCards || `<div class="empty"><span class="muted">Nog geen groepen.</span></div>`}
+    ${K.groepen.length?`<button class="btn" data-act="addgrp" style="align-self:flex-start">+ Groep toevoegen</button>`:""}</div>`;
+}
+
+function renderKeuring(){
+  const cs = checkSummary();
+  const ac = autoChecks(), mc = MANUAL;
+  const autoHtml = ac.map(c=>`<div class="check b-${c.st}"><div class="ch"><div class="tx"><div><b>${esc(c.t)}</b></div><div class="small muted">${esc(c.d)}</div><div class="ref">NEN 1010 ${esc(c.ref)}</div></div>${pill(c.st)}</div></div>`).join("");
+  const manHtml = mc.map(c=>{ const s = K.checks[c.k]?.s||""; const st = manualSt(c.k);
+    return `<div class="check b-${st==="nvt"?"open":st}"><div class="ch"><div class="tx"><div><b>${esc(c.t)}</b></div><div class="ref">${c.ref==="advies"||c.ref==="woningpraktijk"?esc(c.ref):"NEN 1010 "+esc(c.ref)}</div></div></div>
+      <div class="row"><div class="seg" role="group" aria-label="Beoordeling">${[["ok","In orde"],["nok","Afwijking"],["nvt","N.v.t."]].map(([v,l])=>`<button class="v-${v}${s===v?" on":""}" data-chk="${c.k}" data-v="${v}" aria-pressed="${s===v}">${l}</button>`).join("")}</div></div>
+      ${s==="nok"||K.checks[c.k]?.o?`<input type="text" id="co_${c.k}" data-b="checks.${c.k}.o" value="${esc(K.checks[c.k]?.o||"")}" placeholder="Omschrijf de afwijking">`:""}</div>`;}).join("");
+  const bev = K.ai?.bevindingen?.length ? `<div class="sec"><h2>Uit de foto-analyse</h2><div class="panel">${K.ai.bevindingen.map(b=>`<div class="find">${pill(b.ernst==="afwijking"?"nok":b.ernst==="let op"?"let":"open")}<div class="tx">${esc(b.tekst)}</div></div>`).join("")}</div>
+     <p class="note">Bevindingen van Claude zijn een hulp bij het kijken. Neem ze over in de checklist hieronder als je ze zelf bevestigt.</p></div>` : "";
+  return `
+  <div class="sec"><h2>Keuring</h2>
+    <div class="summary">${[["ok","In orde"],["let","Let op"],["nok","Afwijking"],["open","Open"]].map(([k,l])=>`<div class="sbox"><div class="v" style="color:var(--${k==="nok"?"bad":k==="let"?"warn":k==="ok"?"ok":"open"})">${cs[k]||0}</div><div class="l">${l}</div></div>`).join("")}</div></div>
+  <div class="sec"><div class="sec-h"><h3>Automatisch uit je gegevens</h3></div><div class="stack">${autoHtml}</div></div>
+  ${bev}
+  <div class="sec"><div class="sec-h"><h3>Visuele inspectie groepenkast</h3></div><div class="stack">${manHtml}</div></div>
+  <div class="sec"><div class="sec-h"><h3>Woning</h3><button class="btn small" data-view="woning">Naar ruimtes</button></div>
+    ${(K.ruimtes||[]).length ? `<div class="panel">${K.ruimtes.map(r=>{const s=roomSt(r);return `<div class="find">${pill(s.nok?"nok":s.open?"open":"ok")}<div class="tx"><b>${esc(r.naam)}</b> <span class="small muted">${s.nok?`${s.nok} afwijking(en)`:s.open?`${s.open} van ${s.tot} open`:"alles beoordeeld"}</span></div></div>`;}).join("")}</div>` : `<div class="empty"><span class="muted">Nog geen ruimtes. Voeg ze toe op het tabblad Woning.</span></div>`}</div>
+  <div class="sec"><h3>Opmerkingen voor het rapport</h3><textarea id="opm" data-b="opmerkingen" placeholder="Bijv. advies aan bewoner, afspraken over herstel">${esc(K.opmerkingen)}</textarea></div>
+  <p class="note" style="margin-top:20px">Bepalingsnummers zijn een hulpmiddel en kunnen afwijken per versie van NEN 1010. Controleer ze met je eigen exemplaar.</p>`;
+}
+
+function renderMetingen(){
+  const G = K.grens;
+  const rows = K.groepen.map((g,i)=>{ const lim=zsLimit(g);
+    return `<tr><td class="n">${g.nr}</td><td style="min-width:120px"><div>${esc(g.omschr||"–")}</div><div class="lim">${esc(g.kar)}${esc(g.In)} · ${esc(g.als||"geen ALS")}</div></td>
+    <td><div class="cell">${minp(`mr${i}`,`groepen.${i}.riso`,g.riso,`isolatieweerstand groep ${g.nr}`,"MΩ",'data-live aria-label="Isolatieweerstand"')}<span class="lim">≥ ${fmt(num(G.risoMin))} MΩ<span class="dot d-${stRiso(g.riso)}" data-st="riso:${i}"></span></span></div></td>
+    <td><div class="cell">${minp(`mz${i}`,`groepen.${i}.zs`,g.zs,`lusimpedantie Zs groep ${g.nr}`,"Ω",'data-live aria-label="Lusimpedantie"')}<span class="lim">≤ ${lim?fmt(lim):"?"} Ω<span class="dot d-${stZs(g)}" data-st="zs:${i}"></span></span></div></td>
+    <td><div class="cell">${minp(`mp${i}`,`groepen.${i}.rpe`,g.rpe,`continuïteit beschermingsleiding groep ${g.nr}`,"Ω",'aria-label="Continuïteit PE"')}<span class="lim">vastleggen</span></div></td></tr>`;}).join("");
+  const arows = K.als.map((a,i)=>{ const d=num(a.idn);
+    return `<tr><td class="n">${esc(a.id)}</td><td><div>${esc(a.In)} A · ${esc(a.idn)} mA</div><div class="lim">type ${esc(a.type||"?")}</div></td>
+    <td><div class="cell">${minp(`la${i}`,`als.${i}.Ia`,a.Ia,`aanspreekstroom aardlek ${a.id}`,"mA",'data-live aria-label="Aanspreekstroom"')}<span class="lim">${d?fmt(d/2,1):"?"}–${d||"?"} mA<span class="dot d-${stIa(a)}" data-st="ia:${i}"></span></span></div></td>
+    <td><div class="cell">${minp(`l1${i}`,`als.${i}.t1`,a.t1,`uitschakeltijd aardlek ${a.id} bij 1× IΔn`,"ms",'data-live aria-label="Aanspreektijd bij 1x"')}<span class="lim">≤ ${G.t1} ms<span class="dot d-${stT(a.t1,G.t1)}" data-st="t1:${i}"></span></span></div></td>
+    <td><div class="cell">${minp(`l5${i}`,`als.${i}.t5`,a.t5,`uitschakeltijd aardlek ${a.id} bij 5× IΔn`,"ms",'data-live aria-label="Aanspreektijd bij 5x"')}<span class="lim">≤ ${G.t5} ms<span class="dot d-${stT(a.t5,G.t5)}" data-st="t5:${i}"></span></span></div></td></tr>`;}).join("");
+  return `
+  <div class="sec"><h2>Metingen</h2><p class="lead">De bolletjes kleuren groen of rood zodra je een waarde invult. Komma of punt mag allebei.</p></div>
+  <div class="sec"><h3>Per groep</h3>
+    ${K.groepen.length?`<div class="tblwrap"><table class="t"><thead><tr><th>Gr.</th><th>Omschrijving</th><th>R<sub>iso</sub> MΩ</th><th>Z<sub>s</sub> Ω</th><th>R<sub>PE</sub> Ω</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="note">Z<sub>s</sub>-grens = U₀ / (k × In), met k = 5 (B), 10 (C), 20 (D) en U₀ = ${G.u0} V, voor 0,4 s uitschakeltijd. Ligt Z<sub>s</sub> erboven maar is de groep beveiligd met een 30 mA aardlekschakelaar, dan staat er oranje.</p>`
+    :`<div class="empty"><span class="muted">Voeg eerst groepen toe op het tabblad Groepen.</span></div>`}</div>
+  <div class="sec"><h3>Aardlekschakelaars</h3>
+    ${K.als.length?`<div class="tblwrap"><table class="t"><thead><tr><th>ALS</th><th>Gegevens</th><th>I<sub>a</sub> mA</th><th>t bij 1× ms</th><th>t bij 5× ms</th></tr></thead><tbody>${arows}</tbody></table></div>`
+    :`<div class="empty"><span class="muted">Nog geen aardlekschakelaars.</span></div>`}</div>
+  <div class="sec"><h3>Installatie</h3>
+    <div class="panel grid3">
+      <label class="f"><span>Aardverspreiding R<sub>A</sub> (Ω)</span>${minp("ra","ra",K.ra,"aardverspreidingsweerstand RA","Ω","data-live")}<span class="lim">≤ ${G.raMax} Ω <span class="dot d-${stRa()}" data-st="ra"></span></span></label>
+      <label class="f"><span>Testspanning R<sub>iso</sub> (V)</span>${ninp("tsp","grens.testspanning",G.testspanning)}</label>
+      <label class="f"><span>Meetinstrument</span>${inp("itype","instr.type",K.instr.type)}</label>
+      <label class="f"><span>Serienummer</span>${inp("iser","instr.serienr",K.instr.serienr)}</label>
+      <label class="f"><span>Kalibratiedatum</span><input type="date" id="ikal" data-b="instr.kalibratie" value="${esc(K.instr.kalibratie)}"></label>
+    </div></div>
+  <details class="sec"><summary><b>Grenswaarden aanpassen</b> <span class="small muted">· voor deze keuring</span></summary>
+    <div class="panel grid3" style="margin-top:10px">
+      <label class="f"><span>Min. R<sub>iso</sub> (MΩ)</span>${ninp("g_riso","grens.risoMin",G.risoMin,"data-re")}</label>
+      <label class="f"><span>Max. t bij 1× (ms)</span>${ninp("g_t1","grens.t1",G.t1,"data-re")}</label>
+      <label class="f"><span>Max. t bij 5× (ms)</span>${ninp("g_t5","grens.t5",G.t5,"data-re")}</label>
+      <label class="f"><span>Max. R<sub>A</sub> (Ω)</span>${ninp("g_ra","grens.raMax",G.raMax,"data-re")}</label>
+      <label class="f"><span>U₀ (V)</span>${ninp("g_u0","grens.u0",G.u0,"data-re")}</label>
+      <label class="f"><span>Max. groepen per ALS</span>${ninp("g_max","grens.maxGroepenPerAls",G.maxGroepenPerAls,"data-re")}</label>
+    </div>
+    <p class="note" style="margin-top:10px">Standaardwaarden: R<sub>iso</sub> ≥ 1 MΩ bij 500 V; aardlek 30 mA uit binnen 300 ms bij 1× en 40 ms bij 5× I<sub>Δn</sub>, aanspreekstroom tussen 50 en 100% van I<sub>Δn</sub>. Voor R<sub>A</sub> is 166 Ω een gangbare praktijkwaarde; bij TT geldt R<sub>A</sub> × I<sub>Δn</sub> ≤ 50 V. Controleer met je norm.</p>
+  </details>`;
+}
+
+function renderWoning(){
+  K.ruimtes = K.ruimtes || [];
+  if (!K.ruimtes.length) return `<div class="sec"><h2>Woning</h2>
+    <p class="lead">Loop de woning per ruimte door: koppel de groepen, vink de checks af en leg metingen op bijvoorbeeld de verst gelegen wandcontactdoos vast.</p>
+    <div class="empty"><h3>Nog geen ruimtes</h3><p class="muted" style="margin:0">Begin met een standaardwoning en pas die aan, of voeg ruimtes één voor één toe.</p>
+    <div class="row"><button class="btn pri" data-act="stdrooms">Standaardwoning invullen</button><button class="btn" data-act="addroom">Ruimte toevoegen</button></div></div></div>`;
+  const tot = K.ruimtes.reduce((a,r)=>{ const s=roomSt(r); a.nok+=s.nok; a.open+=s.open; return a; }, {nok:0, open:0});
+  const order = v => { const i = VERDIEPINGEN.indexOf(v); return i<0 ? 99 : i; };
+  const vds = [...new Set(K.ruimtes.map(r=>r.verdieping))].sort((a,b)=>order(a)-order(b));
+  const html = vds.map(v => `<div class="vd">${esc(v)}</div>` + K.ruimtes.map((r,ri)=>({r,ri})).filter(x=>x.r.verdieping===v).map(({r,ri})=>roomHtml(r,ri)).join("")).join("");
+  return `<div class="sec"><div class="sec-h"><h2>Woning</h2><button class="btn small" data-act="addroom">+ Ruimte</button></div>
+    <p class="lead">${K.ruimtes.length} ruimtes${tot.nok?` · <b style="color:var(--bad)">${tot.nok} afwijking(en)</b>`:""}${tot.open?` · ${tot.open} checks open`:""}. Tik op een ruimte om hem te keuren.</p>
+    <div class="stack">${html}</div></div>`;
+}
+function roomHtml(r, ri){
+  const s = roomSt(r), open = OPEN_ROOM === r.id;
+  const sub = `${SOORTEN.find(x=>x[0]===r.soort)?.[1]||""}${r.groepen.length?` · gr. ${r.groepen.join(", ")}`:""}`;
+  const head = `<button class="rhead" data-room="${r.id}" aria-expanded="${open}"><span class="nm"><b>${esc(r.naam||"Ruimte")}</b><span class="small muted">${esc(sub)}</span></span>${pill(s.nok?"nok":s.open?"open":"ok")}<span class="chev" aria-hidden="true">›</span></button>`;
+  if (!open) return `<div class="room">${head}</div>`;
+  const P = `ruimtes.${ri}`;
+  const chips = K.groepen.length ? `<div class="chips">${K.groepen.map(g=>`<button class="chip${r.groepen.includes(g.nr)?" on":""}" data-rg="${ri}" data-nr="${g.nr}" aria-pressed="${r.groepen.includes(g.nr)}" title="${esc(g.omschr)}">${g.nr}</button>`).join("")}</div>` : `<span class="small muted">Nog geen groepen in de kast.</span>`;
+  const checks = roomChecks(r).map(c => { const v = r.checks[c.k]?.s||""; const st = v==="ok"?"ok":v==="nok"?"nok":"open"; const fotos = r.checks[c.k]?.f||[];
+    return `<div class="check b-${st}"><div class="ch"><div class="tx"><div><b>${esc(c.t)}</b></div><div class="ref">${/^\d/.test(c.ref)?"NEN 1010 ":""}${esc(c.ref)}</div></div></div>
+      <div class="row"><div class="seg" role="group" aria-label="Beoordeling">${[["ok","In orde"],["nok","Afwijking"],["nvt","N.v.t."]].map(([val,l])=>`<button class="v-${val}${v===val?" on":""}" data-rchk="${ri}" data-k="${c.k}" data-v="${val}" aria-pressed="${v===val}">${l}</button>`).join("")}</div></div>
+      ${v==="nok"||r.checks[c.k]?.o||fotos.length ? `<input type="text" id="ro_${r.id}_${c.k}" data-b="${P}.checks.${c.k}.o" value="${esc(r.checks[c.k]?.o||"")}" placeholder="Omschrijf de afwijking">
+      <div class="fotos">${fotos.map((f,fi)=>`<div class="fthumb"><img src="${esc(fotoSrc(f))}" alt="Foto bij afwijking"><button data-delfoto="${ri}|${c.k}|${fi}" aria-label="Foto verwijderen">×</button></div>`).join("")}
+        <button class="btn small" data-addfoto="${ri}|${c.k}">+ Foto</button></div>` : ""}</div>`; }).join("");
+  const mp = r.mp.map((p,pi) => { const g = grpByNr(p.groep); const lim = g ? zsLimit(g) : null;
+    return `<div class="mp"><label class="f wide"><span>Meetpunt</span>${inp(`mpp_${r.id}_${pi}`,`${P}.mp.${pi}.punt`,p.punt,'placeholder="Bijv. wcd naast bed"')}</label>
+      <label class="f"><span>Groep</span>${sel(`mpg_${r.id}_${pi}`,`${P}.mp.${pi}.groep`,p.groep,[["","–"]].concat(K.groepen.map(g=>[String(g.nr),String(g.nr)])))}</label>
+      <label class="f"><span>Z<sub>s</sub> Ω <span class="dot d-${stMp(p)}" data-st="mp:${ri}:${pi}"></span></span>${ninp(`mpz_${r.id}_${pi}`,`${P}.mp.${pi}.zs`,p.zs,"data-live")}</label>
+      <label class="f"><span>R<sub>PE</sub> Ω</span>${ninp(`mpr_${r.id}_${pi}`,`${P}.mp.${pi}.rpe`,p.rpe)}</label>
+      <button class="btn ghost small danger" data-delmp="${ri}|${pi}" aria-label="Meetpunt verwijderen">×</button>
+      ${lim?`<span class="lim wide" style="grid-column:1/-1">Max. Z<sub>s</sub> voor groep ${esc(p.groep)}: ${fmt(lim)} Ω</span>`:""}</div>`; }).join("");
+  return `<div class="room openr">${head}<div class="rbody">
+    <div class="grid3"><label class="f"><span>Naam</span>${inp(`rn_${r.id}`,`${P}.naam`,r.naam)}</label>
+      <label class="f"><span>Soort</span>${sel(`rs_${r.id}`,`${P}.soort`,r.soort,SOORTEN)}</label>
+      <label class="f"><span>Verdieping</span>${sel(`rv_${r.id}`,`${P}.verdieping`,r.verdieping,VERDIEPINGEN)}</label></div>
+    <div><div class="small muted" style="margin-bottom:6px">Groepen in deze ruimte</div>${chips}</div>
+    <div class="stack">${checks}</div>
+    <div class="stack"><div class="sec-h"><h3>Metingen in deze ruimte</h3><button class="btn small" data-addmp="${ri}">+ Meetpunt</button></div>
+      ${mp || `<span class="small muted">Leg bijvoorbeeld Z<sub>s</sub> vast op de verst gelegen wandcontactdoos van elke groep.</span>`}</div>
+    <label class="f"><span>Opmerking</span><textarea id="rop_${r.id}" data-b="${P}.opm">${esc(r.opm)}</textarea></label>
+    <div class="row"><button class="btn small" data-room="${r.id}">Ruimte sluiten</button><button class="btn ghost small danger" data-delroom="${ri}">Ruimte verwijderen</button></div>
+  </div></div>`;
+}
+async function addFoto(file){
+  const t = FOTO_T; if (!t || !K) return; FOTO_T = null;
+  const r = K.ruimtes[t.ri]; if (!r) return;
+  const big = await shrink(file, 1280, 0.8);
+  let entry = null;
+  if (assetsFn && big) { try { const a = await assetsFn.upload(big); entry = {id:a.id, url:a.url}; } catch(e){ entry = null; } }
+  if (!entry) { const small = await shrink(file, 560, 0.6, true); if (!small) { toast("Foto kon niet worden gelezen."); return; } entry = {data: small}; }
+  r.checks[t.k] = r.checks[t.k] || {}; r.checks[t.k].f = (r.checks[t.k].f||[]).concat(entry);
+  changed(); render.keepScroll = true; render(); toast("Foto toegevoegd");
+}
+function shrink(file, max, q, asData){
+  return new Promise(res => { const img = new Image(), u = URL.createObjectURL(file);
+    img.onload = () => { const s = Math.min(1, max/Math.max(img.width,img.height)); const c = document.createElement("canvas"); c.width=Math.round(img.width*s); c.height=Math.round(img.height*s);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(u);
+      if (asData) { try { res(c.toDataURL("image/jpeg", q)); } catch(e){ res(null); } } else c.toBlob(b=>res(b), "image/jpeg", q); };
+    img.onerror = () => { URL.revokeObjectURL(u); res(null); }; img.src = u; });
+}
+function roomsOf(nr){ return (K.ruimtes||[]).filter(r=>r.groepen.includes(nr)).map(r=>r.naam).join(", "); }
+function renderRapport(){
+  const cs = checkSummary(), m = measureStats();
+  const rows = K.groepen.map(g=>`<tr><td class="n">${g.nr}</td><td>${esc(g.omschr||"")}${roomsOf(g.nr)?`<div class="lim">${esc(roomsOf(g.nr))}</div>`:""}</td><td class="mono">${esc(g.kar)}${esc(g.In)}</td><td>${esc(g.polen)}</td><td>${esc(g.als||"–")}</td></tr>`).join("");
+  const dlMsg = `<p class="note">${SET.pdfDelen && navigator.canShare ? "De PDF opent het deelmenu: kies bijvoorbeeld Mail, WhatsApp of Bestanden." : "De PDF wordt opgeslagen in Downloads."} Je kunt dit wijzigen bij Instellingen.</p>`;
+  const libOk = !!(window.jspdf && window.jspdf.jsPDF);
+  return `
+  <div class="sec"><h2>Rapporten</h2>
+    <p class="lead">${cs.nok?`<b style="color:var(--bad)">${cs.nok} afwijking(en)</b> in de keuring. `:""}${cs.open?`${cs.open} keuringspunt(en) open. `:"Keuring compleet. "}${m.done} van ${m.tot} metingen ingevuld.</p>
+    <div class="dlrow">
+      <button class="btn pri" data-pdf="alles" ${(!dlFn||!libOk)?"disabled":""}>Alles in één PDF</button>
+      <button class="btn" data-pdf="groep" ${(!dlFn||!libOk)?"disabled":""}>Groepenverklaring</button>
+      <button class="btn" data-pdf="keuring" ${(!dlFn||!libOk)?"disabled":""}>Keuringsrapport</button>
+      <button class="btn" data-pdf="meet" ${(!dlFn||!libOk)?"disabled":""}>Meetrapport</button>
+    </div>${dlMsg}${libOk?"":`<p class="note">De PDF-module is niet geladen. Open de app één keer met internet, daarna werkt hij ook offline.</p>`}</div>
+  <div class="sec"><h3>Voorbeeld groepenverklaring</h3>
+    <div class="gv"><div class="gvh"><h3>Groepenverklaring</h3><span class="small">${esc(K.adres||"")} · ${nlDate(K.datum)}</span></div>
+    <div class="tblwrap" style="border:0;border-radius:0"><table class="t"><thead><tr><th>Groep</th><th>Omschrijving</th><th>Beveiliging</th><th>Polen</th><th>Aardlek</th></tr></thead><tbody>${rows||`<tr><td colspan="5" class="muted">Nog geen groepen.</td></tr>`}</tbody></table></div>
+    <div style="padding:10px 14px" class="small muted">${K.hs.aanwezig?`Hoofdschakelaar ${K.hs.polen}P ${esc(K.hs.In)} A. `:""}${K.als.map(a=>`${esc(a.id)}: ${esc(a.In)} A / ${esc(a.idn)} mA type ${esc(a.type||"?")}`).join(" · ")}</div></div>
+    <p class="note">De groepenverklaring hang je in de kast. Vul eerst de omschrijvingen op het tabblad Groepen volledig in.</p></div>`;
+}
+
+function renderSheet(){
+  const s = $("#sheet");
+  if (!pending) { s.hidden = true; s.innerHTML = ""; return; }
+  s.hidden = false;
+  s.innerHTML = `<div class="sheet" data-act="cancel"><div class="in" role="dialog" aria-modal="true" aria-labelledby="sh_t">
+    <h3 id="sh_t">${esc(pending.title)}</h3><p style="margin:0" class="muted">${esc(pending.text)}</p>
+    <div class="row"><button class="btn ${pending.danger?"danger":"pri"}" data-act="confirm" id="sh_ok">${esc(pending.ok)}</button><button class="btn" data-act="cancel">Annuleren</button></div></div></div>`;
+  setTimeout(()=>{ const b=$("#sh_ok"); if(b) b.focus(); },0);
+}
+function updateStatuses(){
+  document.querySelectorAll("[data-st]").forEach(el => {
+    const [k,i] = el.dataset.st.split(":"); let s="open";
+    if (k==="riso") s = stRiso(K.groepen[i]?.riso); else if (k==="zs") s = stZs(K.groepen[i]);
+    else if (k==="ia") s = stIa(K.als[i]); else if (k==="t1") s = stT(K.als[i].t1,K.grens.t1); else if (k==="t5") s = stT(K.als[i].t5,K.grens.t5); else if (k==="ra") s = stRa(); else if (k==="mp") { const j = el.dataset.st.split(":"); s = stMp(K.ruimtes[j[1]].mp[j[2]]); }
+    el.className = "dot d-" + s;
+  });
+}
+
+/* ---------- foto's ---------- */
+function addFiles(files){
+  const max = AI.max || 4;
+  for (const f of files) { if (!/^image\//.test(f.type)) continue; if (PHOTOS.length >= max) { toast(`Maximaal ${max} foto's per analyse.`); break; } PHOTOS.push({blob:f, url:URL.createObjectURL(f)}); }
+  if (PHOTOS.length && !K.thumb) makeThumb(PHOTOS[0].blob);
+  render.keepScroll = true; render();
+}
+function makeThumb(blob){
+  const img = new Image(); const u = URL.createObjectURL(blob);
+  img.onload = () => { const s = Math.min(1, 720/Math.max(img.width,img.height)); const c = document.createElement("canvas"); c.width=Math.round(img.width*s); c.height=Math.round(img.height*s);
+    c.getContext("2d").drawImage(img,0,0,c.width,c.height); try { K.thumb = c.toDataURL("image/jpeg",0.72); changed(); } catch(e){} URL.revokeObjectURL(u); };
+  img.src = u;
+}
+
+/* ---------- AI analyse ---------- */
+const PROMPT = `Je bent een ervaren Nederlandse elektrotechnisch installateur. Je krijgt foto's van één groepenkast in een woning: de eerste is een overzichtsfoto, eventuele volgende zijn close-ups.
+Lees de componenten af, van links naar rechts en van boven naar beneden.
+
+Regels:
+- Gok niet. Is een waarde niet leesbaar, gebruik null (of "?" bij tekst) en zet "zeker" op "laag".
+- Koppel een groep alleen aan een aardlekschakelaar ("als") als de bedrading of kamrail dat duidelijk laat zien; anders "".
+- Een installatieautomaat 1P+N van 1 module telt als één eindgroep. Aardlekautomaten (gecombineerd) neem je op als groep én noem je in de bevindingen.
+- Bevindingen gaan over wat zichtbaar afwijkt of aandacht vraagt t.o.v. NEN 1010 (bijv. ontbrekende afdekking, groepen zonder aardlek, meer dan 4 groepen per aardlek, kleurcodering, losse/tijdelijke verbindingen, geen overspanningsbeveiliging). Kort en concreet, in het Nederlands.
+
+Antwoord alleen met JSON in deze vorm:
+{"aansluiting":"1-fase|3-fase|onbekend",
+ "hoofdschakelaar":{"aanwezig":true,"polen":4,"In":40,"merkType":"","zeker":"hoog|midden|laag"},
+ "aardlek":[{"id":"A1","positie":"rij 2, pos 2","polen":4,"In":40,"idn":30,"type":"A|AC|B|F|?","merkType":"","zeker":"hoog"}],
+ "groepen":[{"nr":1,"positie":"rij 1, pos 1","kar":"B|C|D|?","In":16,"polen":"1P+N|2P|3P+N|1P|?","als":"A1","omschr":"","zeker":"midden"}],
+ "overspanning":"ja|nee|onbekend",
+ "bevindingen":[{"ernst":"afwijking|let op|info","tekst":""}],
+ "advies":"welke extra foto zou helpen, of lege string"}`;
+
+async function analyse(){
+  if (!sampleFn || !PHOTOS.length || AI.busy) return;
+  AI.busy = true; AI.text = ""; AI.err = ""; AI.result = null; AI.ctl = new AbortController(); render.keepScroll = true; render();
+  try {
+    const r = await sampleFn.json(PROMPT, { images: PHOTOS.map(p=>p.blob), signal: AI.ctl.signal,
+      onText: ({text}) => { AI.text = text; const el = $("#aiout"); if (el) { el.textContent = text; el.scrollTop = el.scrollHeight; } } });
+    AI.result = normalize(r);
+  } catch(e) {
+    const c = e && e.code;
+    AI.err = c==="cancelled" ? "" : c==="auth" ? "De API-sleutel wordt niet geaccepteerd. Controleer hem bij Instellingen."
+      : c==="no_key" ? "Vul eerst je API-sleutel in bij Instellingen." : c==="offline" ? "Geen internetverbinding. Probeer het opnieuw zodra je verbinding hebt."
+      : c==="overloaded" ? "Claude is even overbelast. Probeer het over een minuut opnieuw." : c==="bad_request" ? `De aanvraag werd geweigerd${e.message?": "+e.message:""}. Controleer je tegoed op console.anthropic.com.`
+      : c==="not_granted"||c==="sampling_disabled" ? "Claude mag deze foto's niet bekijken. Vul de groepen met de hand in."
+      : c==="rate_limited" ? "Even te veel aanvragen. Probeer het over een paar minuten opnieuw." : c==="image_rejected" ? "Een van de foto's kon niet worden gelezen. Probeer een andere foto."
+      : c==="invalid_json" ? "Het antwoord was onvolledig. Probeer het opnieuw, eventueel met minder foto's." : c==="images_unavailable" ? (sampleImg=false, "Foto's versturen is hier niet beschikbaar.")
+      : "De analyse is mislukt. Probeer het opnieuw.";
+  }
+  AI.busy = false; render.keepScroll = true; render();
+}
+function normalize(r){
+  r = r || {};
+  const h = r.hoofdschakelaar || {};
+  const hsObj = {aanwezig: h.aanwezig !== false && (h.aanwezig===true || h.In!=null), polen: h.polen==2?2:4, In: h.In ?? ""};
+  const alsArr = (Array.isArray(r.aardlek)?r.aardlek:[]).map((a,i)=>({id:String(a.id||`A${i+1}`).slice(0,6), polen:a.polen==2?2:4, In:a.In??"", idn:a.idn??30, type:["A","AC","B","F"].includes(a.type)?a.type:"?", Ia:"", t1:"", t5:""}));
+  const ids = new Set(alsArr.map(a=>a.id));
+  const grpArr = (Array.isArray(r.groepen)?r.groepen:[]).map((g,i)=>({nr:i+1, kar:["B","C","D"].includes(g.kar)?g.kar:"?", In:g.In??"", polen:["1P+N","2P","3P+N","1P"].includes(g.polen)?g.polen:"?",
+    als: ids.has(g.als)?g.als:"", omschr: String(g.omschr||""), mm2: num(g.In)>=20?"4":"2,5", riso:"", zs:"", rpe:""}));
+  const bev = (Array.isArray(r.bevindingen)?r.bevindingen:[]).filter(b=>b&&b.tekst).map(b=>({ernst:["afwijking","let op","info"].includes(b.ernst)?b.ernst:"info", tekst:String(b.tekst)}));
+  return {hsObj, alsArr, grpArr, bev, advies:String(r.advies||""), aansluiting:r.aansluiting, overspanning:r.overspanning};
+}
+function applyResult(){
+  const r = AI.result; if (!r) return;
+  K.hs = r.hsObj; K.als = r.alsArr; K.groepen = r.grpArr;
+  if (r.aansluiting==="1-fase"||r.aansluiting==="3-fase") K.aansluiting = r.aansluiting;
+  if (r.overspanning==="ja") K.overspanning="ja"; else if (r.overspanning==="nee" && K.overspanning==="onbekend") K.overspanning="nee";
+  K.ai = {datum:Date.now(), bevindingen:r.bev, advies:r.advies};
+  K.voorbeeld = false;
+  AI.result = null; changed(); VIEW = "groepen"; window.scrollTo(0,0); render(); toast("Overgenomen. Controleer de groepen en koppel ze aan een aardlek.");
+}
+
+/* ---------- PDF ---------- */
+const PDF_C = {ink:[21,32,43], muted:[90,103,116], accent:[169,82,28], line:[211,218,224], ok:[28,122,76], let:[154,100,8], nok:[186,51,40], open:[102,114,126]};
+function pdfHeader(doc, title){
+  const W = doc.internal.pageSize.getWidth();
+  doc.setFillColor(...PDF_C.ink); doc.rect(0,0,W,24,"F");
+  doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.text(title.toUpperCase(),14,15);
+  doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.text(`${K.adres||"Adres onbekend"}  ·  ${nlDate(K.datum)}`, W-14, 15, {align:"right"});
+  doc.setTextColor(...PDF_C.ink);
+  return 32;
+}
+function kv(doc, y, pairs){
+  doc.setFontSize(9);
+  pairs.forEach(([k,v],i)=>{ const x = 14 + (i%2)*95, yy = y + Math.floor(i/2)*6;
+    doc.setTextColor(...PDF_C.muted); doc.text(k, x, yy); doc.setTextColor(...PDF_C.ink); doc.text(String(v||"–"), x+34, yy); });
+  return y + Math.ceil(pairs.length/2)*6 + 4;
+}
+const AT = {theme:"grid", styles:{fontSize:9, cellPadding:2, lineColor:PDF_C.line, lineWidth:0.2, textColor:PDF_C.ink}, headStyles:{fillColor:[227,232,236], textColor:PDF_C.ink, fontStyle:"bold"}, margin:{left:14,right:14}};
+const stTxt = s => ({ok:"In orde", let:"Let op", nok:"Afwijking", open:"Open", nvt:"N.v.t."}[s]);
+function colorCell(data, col){ if (data.section==="body" && data.column.index===col){ const s = data.cell.raw && data.cell.raw.st; if (s && PDF_C[s]) { data.cell.styles.textColor = PDF_C[s]; data.cell.styles.fontStyle="bold"; } } }
+
+function pdfGroep(doc){
+  let y = pdfHeader(doc, "Groepenverklaring");
+  y = kv(doc, y, [["Adres",K.adres],["Datum",nlDate(K.datum)],["Aansluiting",K.aansluiting],["Hoofdschakelaar",K.hs.aanwezig?`${K.hs.polen}P ${K.hs.In} A`:"geen"],["Installateur",K.installateur],["Soort",K.soort==="nieuw"?"Nieuwe installatie":"Renovatie"]]);
+  doc.autoTable({...AT, startY:y, head:[["Groep","Omschrijving","Beveiliging","Polen","Aardlek","Kabel"]],
+    body:K.groepen.map(g=>[g.nr, (g.omschr||"") + (roomsOf(g.nr)?`\nRuimtes: ${roomsOf(g.nr)}`:""), `${g.kar}${g.In} A`, g.polen, g.als||"–", g.mm2?`${g.mm2} mm²`:""]),
+    columnStyles:{0:{cellWidth:16, fontStyle:"bold", textColor:PDF_C.accent},1:{cellWidth:"auto"}}});
+  y = doc.lastAutoTable.finalY + 6;
+  doc.autoTable({...AT, startY:y, head:[["Aardlekschakelaar","Polen","In","IΔn","Type","Groepen"]],
+    body:K.als.map(a=>[a.id, `${a.polen}P`, `${a.In} A`, `${a.idn} mA`, a.type||"?", K.groepen.filter(g=>g.als===a.id).map(g=>g.nr).join(", ")])});
+}
+function pdfKeuring(doc){
+  let y = pdfHeader(doc, "Keuringsrapport");
+  y = kv(doc, y, [["Adres",K.adres],["Opdrachtgever",K.opdrachtgever],["Datum",nlDate(K.datum)],["Uitgevoerd door",K.installateur],["Soort",K.soort==="nieuw"?"Nieuwe installatie":"Renovatie"],["Stelsel",K.stelsel],["Aansluiting",K.aansluiting],["Overspanningsbev.",{ja:"aanwezig",nee:"niet aanwezig",beoordeeld:"niet nodig (beoordeeld)",onbekend:"nog bepalen"}[K.overspanning]]]);
+  const cs = checkSummary();
+  doc.setFontSize(10); doc.setFont("helvetica","bold");
+  doc.text(`Resultaat: ${cs.ok||0} in orde · ${cs.let||0} let op · ${cs.nok||0} afwijking · ${cs.open||0} open`, 14, y); doc.setFont("helvetica","normal"); y += 4;
+  if (K.thumb) { try { const W = doc.internal.pageSize.getWidth(); const ip = doc.getImageProperties(K.thumb); const w = 42, h = w*ip.height/ip.width; doc.addImage(K.thumb,"JPEG",W-14-w,y+2,w,h); } catch(e){} }
+  const tblRight = K.thumb ? 64 : 14;
+  doc.autoTable({...AT, startY:y+2, margin:{left:14,right:tblRight}, head:[["Keuringspunt","Bepaling","Resultaat"]],
+    body: allChecks().map(c=>[ c.t + (c.auto&&c.d? "\n"+c.d : "") + (c.opm? "\nOpm.: "+c.opm : ""), c.ref, {content:stTxt(c.st), st:c.st==="nvt"?"open":c.st}]),
+    columnStyles:{1:{cellWidth:26, textColor:PDF_C.muted},2:{cellWidth:22}}, didParseCell:d=>colorCell(d,2)});
+  y = doc.lastAutoTable.finalY + 6;
+  if (K.ai?.bevindingen?.length) {
+    doc.autoTable({...AT, startY:y, head:[["Bevindingen uit foto-analyse (door installateur beoordeeld)","Ernst"]], body:K.ai.bevindingen.map(b=>[b.tekst,b.ernst]), columnStyles:{1:{cellWidth:22}}});
+    y = doc.lastAutoTable.finalY + 6;
+  }
+  const rr = roomCheckRows();
+  if (rr.length) {
+    doc.autoTable({...AT, startY:y, head:[["Ruimte","Keuringspunt","Bepaling","Resultaat"]],
+      body: rr.map(x=>[`${x.r.naam}\n${x.r.verdieping}`, x.c.t + (x.opm?"\nOpm.: "+x.opm:"") + (x.fotos.length?`\n(${x.fotos.length} foto)`:""), x.c.ref, {content:stTxt(x.st), st:x.st==="nvt"?"open":x.st}]),
+      columnStyles:{0:{cellWidth:30, fontStyle:"bold"},2:{cellWidth:26, textColor:PDF_C.muted},3:{cellWidth:22}}, didParseCell:d=>colorCell(d,3)});
+    y = doc.lastAutoTable.finalY + 6;
+    const ro = (K.ruimtes||[]).filter(r=>r.opm);
+    if (ro.length) { doc.autoTable({...AT, startY:y, head:[["Ruimte","Opmerking"]], body:ro.map(r=>[r.naam, r.opm]), columnStyles:{0:{cellWidth:30}}}); y = doc.lastAutoTable.finalY + 6; }
+  }
+  if (K.opmerkingen) { doc.autoTable({...AT, startY:y, head:[["Opmerkingen"]], body:[[K.opmerkingen]]}); y = doc.lastAutoTable.finalY + 6; }
+  signature(doc, y);
+  const fl = rr.flatMap(x => x.fotos.map(f => ({f, cap:`${x.r.naam}: ${x.c.t}`}))).filter(o => PDF_IMG[o.f.id || o.f.data]);
+  if (fl.length) {
+    doc.addPage(); let yy = pdfHeader(doc, "Foto's bij afwijkingen"); let col = 0; const w = 88;
+    fl.forEach(o => { const src = PDF_IMG[o.f.id || o.f.data]; let ip; try { ip = doc.getImageProperties(src); } catch(e){ return; }
+      const ratio = ip.height/ip.width; let iw = w, h = w*ratio; if (h > 90) { h = 90; iw = 90/ratio; } const H = doc.internal.pageSize.getHeight();
+      if (yy + h + 14 > H - 14) { if (col===0) { col=1; yy = 32; } else { doc.addPage(); yy = pdfHeader(doc, "Foto's bij afwijkingen"); col=0; } }
+      const x = 14 + col*(w+6);
+      try { doc.addImage(src, "JPEG", x, yy, iw, h); } catch(e){}
+      doc.setFontSize(8); doc.setTextColor(...PDF_C.muted); doc.text(doc.splitTextToSize(o.cap, w), x, yy+h+4); doc.setTextColor(...PDF_C.ink);
+      yy += h + 14; });
+  }
+}
+function pdfMeet(doc){
+  let y = pdfHeader(doc, "Meetrapport");
+  const G = K.grens;
+  y = kv(doc, y, [["Adres",K.adres],["Datum",nlDate(K.datum)],["Meetinstrument",K.instr.type],["Serienummer",K.instr.serienr],["Kalibratie",nlDate(K.instr.kalibratie)],["Testspanning Riso",`${G.testspanning} V`],["Stelsel",K.stelsel],["Gemeten door",K.installateur]]);
+  doc.autoTable({...AT, startY:y, head:[["Gr.","Omschrijving","Bev.","ALS","Riso (MΩ)","Zs (Ω)","Zs max","RPE (Ω)"]],
+    body:K.groepen.map(g=>{ const lim=zsLimit(g); return [g.nr, g.omschr||"", `${g.kar}${g.In}`, g.als||"–",
+      {content: g.riso!==""? String(g.riso):"", st: stRiso(g.riso)}, {content: g.zs!==""? String(g.zs):"", st: stZs(g)}, lim?fmt(lim):"?", g.rpe||""]; }),
+    columnStyles:{0:{cellWidth:10,fontStyle:"bold"}}, didParseCell:d=>{colorCell(d,4);colorCell(d,5);}});
+  y = doc.lastAutoTable.finalY + 6;
+  doc.autoTable({...AT, startY:y, head:[["ALS","In / IΔn","Type","Ia (mA)","t 1× (ms)","t 5× (ms)"]],
+    body:K.als.map(a=>[a.id, `${a.In} A / ${a.idn} mA`, a.type||"?", {content:String(a.Ia||""), st:stIa(a)}, {content:String(a.t1||""), st:stT(a.t1,G.t1)}, {content:String(a.t5||""), st:stT(a.t5,G.t5)}]),
+    didParseCell:d=>{colorCell(d,3);colorCell(d,4);colorCell(d,5);}});
+  y = doc.lastAutoTable.finalY + 6;
+  const mps = (K.ruimtes||[]).flatMap(r => r.mp.map(p => ({r, p})));
+  if (mps.length) {
+    doc.autoTable({...AT, startY:y, head:[["Ruimte","Meetpunt","Groep","Zs (Ω)","Zs max","RPE (Ω)"]],
+      body: mps.map(({r,p}) => { const g = grpByNr(p.groep); const lim = g ? zsLimit(g) : null; return [r.naam, p.punt||"", p.groep||"–", {content:String(p.zs||""), st:stMp(p)}, lim?fmt(lim):"?", p.rpe||""]; }),
+      didParseCell:d=>colorCell(d,3)});
+    y = doc.lastAutoTable.finalY + 6;
+  }
+  doc.autoTable({...AT, startY:y, head:[["Installatie","Waarde","Grens","Resultaat"]], body:[["Aardverspreidingsweerstand RA", K.ra?`${K.ra} Ω`:"", `≤ ${G.raMax} Ω`, {content:stTxt(stRa()), st:stRa()}]], didParseCell:d=>colorCell(d,3)});
+  y = doc.lastAutoTable.finalY + 5;
+  doc.setFontSize(8); doc.setTextColor(...PDF_C.muted);
+  doc.text(doc.splitTextToSize(`Grenswaarden: Riso ≥ ${G.risoMin} MΩ bij ${G.testspanning} V; Zs ≤ U0/(k·In) met U0 = ${G.u0} V, k = 5 (B), 10 (C), 20 (D); aardlek: Ia tussen 50% en 100% van IΔn, t ≤ ${G.t1} ms bij 1×, t ≤ ${G.t5} ms bij 5× IΔn.`, 180), 14, y);
+  doc.setTextColor(...PDF_C.ink);
+  signature(doc, y + 12);
+}
+function signature(doc, y){
+  const H = doc.internal.pageSize.getHeight(); if (y > H - 40) { doc.addPage(); y = 20; }
+  doc.setFontSize(9); doc.setTextColor(...PDF_C.muted);
+  doc.text("Naam installateur", 14, y+6); doc.text("Handtekening", 110, y+6);
+  doc.setDrawColor(...PDF_C.line); doc.line(14, y+20, 95, y+20); doc.line(110, y+20, 196, y+20);
+  doc.setTextColor(...PDF_C.ink); if (K.installateur) doc.text(K.installateur, 14, y+17);
+}
+function footer(doc){
+  const n = doc.getNumberOfPages(), W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  for (let i=1;i<=n;i++){ doc.setPage(i); doc.setFontSize(8); doc.setTextColor(...PDF_C.muted); doc.text(`Kastkeur beta · pagina ${i} van ${n}`, W/2, H-8, {align:"center"}); }
+}
+let PDF_IMG = {};
+const pdfTxt = t => String(t).replace(/IΔn/g,"Idn").replace(/Δ/g,"d").replace(/Ω/g,"Ohm").replace(/≤/g,"<=").replace(/≥/g,">=").replace(/₀/g,"0").replace(/→/g,"->").replace(/[^\x00-\xFF€–—‘’“”•…×²³·]/g,"?");
+async function preloadFotos(){
+  PDF_IMG = {};
+  for (const x of roomCheckRows()) for (const f of x.fotos) {
+    if (f.data) { PDF_IMG[f.data] = f.data; continue; }
+    if (f.id && !PDF_IMG[f.id]) { try { const b = await fotoGet(f.id); if (b) PDF_IMG[f.id] = await blobToData(b); } catch(e){} }
+  }
+}
+async function makePdf(which){
+  if (!window.jspdf || !dlFn) return;
+  if (which==="alles" || which==="keuring") { toast("Rapport maken…"); await preloadFotos(); }
+  const doc = new window.jspdf.jsPDF({unit:"mm", format:"a4"});
+  const _t = doc.text.bind(doc), _s = doc.splitTextToSize.bind(doc);
+  doc.text = (t, ...a) => _t(Array.isArray(t) ? t.map(pdfTxt) : pdfTxt(t), ...a);
+  doc.splitTextToSize = (t, ...a) => _s(pdfTxt(t), ...a);
+  const parts = which==="alles" ? ["keuring","meet","groep"] : [which];
+  parts.forEach((p,i)=>{ if (i) doc.addPage(); ({keuring:pdfKeuring, meet:pdfMeet, groep:pdfGroep})[p](doc); });
+  footer(doc);
+  const naam = {alles:"Keuring", keuring:"Keuringsrapport", meet:"Meetrapport", groep:"Groepenverklaring"}[which];
+  const slug = (K.adres||"zonder-adres").replace(/[^\p{L}\p{N}]+/gu,"-").replace(/^-|-$/g,"").slice(0,40);
+  try { await dlFn.save({filename:`${naam} ${slug} ${K.datum}.pdf`, data: doc.output("blob")}); toast(`${naam} opgeslagen`); }
+  catch(e){ if (e && e.code !== "declined") toast(e.code==="rate_limited" ? "Er staat al een download klaar. Probeer het zo opnieuw." : "Downloaden lukte niet."); }
+}
+
+/* ---------- display aflezen ---------- */
+async function readDisplay(file){
+  const {path, label, unit, id} = SNAP;
+  if (!path || !sampleFn) return;
+  SNAP.busy = path; render.keepScroll = true; render();
+  const prompt = `Op deze foto staat het display van een installatietester (bijvoorbeeld een Fluke 1664 FC).
+Gevraagd: de ${label}, in ${unit}.
+Lees de hoofdwaarde van het display af. Reken om naar ${unit} als het display een andere eenheid toont (bijv. GΩ naar MΩ, s naar ms, kΩ naar Ω).
+Toont het display een groter-dan of kleiner-dan waarde (bijv. ">999 MΩ"), zet dan het teken voor het getal in "waarde" als tekst, bijv. ">999".
+Kun je het niet betrouwbaar lezen, of past de meetfunctie niet bij wat gevraagd is, zet "waarde" op null en leg kort uit waarom.
+Antwoord alleen met JSON: {"waarde": 23.4 | ">999" | null, "afgelezen": "wat er letterlijk op het display staat", "functie": "welke meting het display toont", "zeker": "hoog|midden|laag", "opmerking": ""}`;
+  try {
+    const r = await sampleFn.json(prompt, {images:[file]});
+    let w = r && r.waarde;
+    if (w == null || w === "") { toast(`Niet afgelezen${r && r.opmerking ? ": " + r.opmerking : "."} Vul de waarde met de hand in.`); }
+    else {
+      w = typeof w === "number" ? String(w).replace(".", ",") : String(w).replace(".", ",");
+      setPath(K, path, w); changed();
+      SNAP.busy = null; render.keepScroll = true; render();
+      const el = document.getElementById(id); if (el) { el.classList.add("flash"); setTimeout(()=>el.classList.remove("flash"), 1600); }
+      const lees = r.afgelezen ? ` (display: ${r.afgelezen})` : "";
+      toast(r.zeker === "laag" ? `Ingevuld: ${w} ${unit}${lees}. Twijfelachtig, controleer even.` : `Ingevuld: ${w} ${unit}${lees}`);
+      return;
+    }
+  } catch(e) {
+    const c = e && e.code;
+    toast(c==="not_granted"||c==="sampling_disabled" ? "Aflezen is niet toegestaan in deze weergave. Typ de waarde in."
+      : c==="rate_limited" ? "Even te veel aanvragen. Typ de waarde in of probeer het zo opnieuw."
+      : c==="image_rejected" ? "Deze foto kon niet worden gelezen. Probeer opnieuw." : "Aflezen lukte niet. Typ de waarde in.");
+  }
+  SNAP.busy = null; render.keepScroll = true; render();
+}
+
+/* ---------- events ---------- */
+document.addEventListener("input", e => {
+  const el = e.target; const p = el.dataset && el.dataset.b; if (!p || !K) return;
+  if (el.type === "checkbox") return;
+  setPath(K, p, el.value);
+  if (p === "adres") { const t = document.querySelector(".ttl .t"); if (t) t.textContent = el.value || "Nieuwe keuring"; }
+  changed();
+  if (el.hasAttribute("data-live")) updateStatuses();
+});
+document.addEventListener("change", e => {
+  const el = e.target;
+  if (el.id === "cam" || el.id === "gal") { addFiles([...el.files]); el.value = ""; return; }
+  if (el.id === "s_model") { SET.model = el.value; saveSet(); toast("Model opgeslagen"); return; }
+  if (el.id === "s_inst") { SET.installateur = el.value.trim(); saveSet(); toast("Opgeslagen"); return; }
+  if (el.id === "s_delen") { SET.pdfDelen = el.checked; saveSet(); return; }
+  if (el.id === "s_imp") { const f = el.files && el.files[0]; el.value = ""; if (f) importBackup(f); return; }
+  if (el.id === "fotoin") { const f = el.files && el.files[0]; el.value = ""; if (f) addFoto(f); return; }
+  if (el.id === "snapin") { const f = el.files && el.files[0]; el.value = ""; if (f) readDisplay(f); return; }
+  const p = el.dataset && el.dataset.b; if (!p || !K) return;
+  let v = el.type === "checkbox" ? el.checked : el.value;
+  if (el.tagName === "SELECT" && /polen$|^hs\.polen$/.test(p) && /^\d+$/.test(v)) v = +v;
+  setPath(K, p, v); changed();
+  if (el.hasAttribute("data-re")) { render.keepScroll = true; render(); }
+});
+document.addEventListener("click", e => {
+  const t = e.target.closest("button, [data-act]"); if (!t) return;
+  const d = t.dataset;
+  if (d.view) { VIEW = d.view; window.scrollTo(0,0); render(); return; }
+  if (d.open) { const k = LIST.find(x=>x.id===d.open); if (k) { K = clone(k); K.grens = {...DEFAULT_GRENS, ...(K.grens||{})}; K.ruimtes = K.ruimtes || []; OPEN_ROOM = null; loadFotoUrls(K); PHOTOS = []; AI.result=null; AI.err=""; saveState=""; VIEW = "kast"; window.scrollTo(0,0); render(); } return; }
+  if (d.delphoto != null) { const p = PHOTOS.splice(+d.delphoto,1)[0]; if (p) URL.revokeObjectURL(p.url); render.keepScroll=true; render(); return; }
+  if (d.delgrp != null) { K.groepen.splice(+d.delgrp,1); K.groepen.forEach((g,i)=>g.nr=i+1); changed(); render.keepScroll=true; render(); return; }
+  if (d.delals != null) { const id = K.als[+d.delals].id; K.als.splice(+d.delals,1); K.groepen.forEach(g=>{ if(g.als===id) g.als=""; }); changed(); render.keepScroll=true; render(); return; }
+  if (d.chk) { const cur = K.checks[d.chk]?.s; K.checks[d.chk] = {...(K.checks[d.chk]||{}), s: cur===d.v ? "" : d.v}; changed(); render.keepScroll=true; render(); return; }
+  if (d.pdf) { makePdf(d.pdf); return; }
+  if (d.room) { OPEN_ROOM = OPEN_ROOM===d.room ? null : d.room; render.keepScroll = true; render(); if (OPEN_ROOM) { const el = document.querySelector(`[data-room="${OPEN_ROOM}"]`); if (el) el.scrollIntoView({block:"nearest"}); } return; }
+  if (d.rg != null) { const r = K.ruimtes[+d.rg], nr = +d.nr; r.groepen = r.groepen.includes(nr) ? r.groepen.filter(x=>x!==nr) : r.groepen.concat(nr).sort((a,b)=>a-b); changed(); render.keepScroll=true; render(); return; }
+  if (d.rchk != null) { const r = K.ruimtes[+d.rchk]; const cur = r.checks[d.k]?.s; r.checks[d.k] = {...(r.checks[d.k]||{}), s: cur===d.v ? "" : d.v}; changed(); render.keepScroll=true; render(); return; }
+  if (d.addfoto) { const [ri,k] = d.addfoto.split("|"); FOTO_T = {ri:+ri, k}; $("#fotoin").click(); return; }
+  if (d.delfoto) { const [ri,k,fi] = d.delfoto.split("|"); const arr = K.ruimtes[+ri].checks[k].f; const f = arr.splice(+fi,1)[0]; if (f && f.id) assetsLocal.delete(f.id).catch(()=>{}); changed(); render.keepScroll=true; render(); return; }
+  if (d.addmp != null) { const r = K.ruimtes[+d.addmp]; r.mp.push({punt:"", groep: r.groepen.length ? String(r.groepen[0]) : "", zs:"", rpe:""}); changed(); render.keepScroll=true; render(); return; }
+  if (d.delmp) { const [ri,pi] = d.delmp.split("|"); K.ruimtes[+ri].mp.splice(+pi,1); changed(); render.keepScroll=true; render(); return; }
+  if (d.delroom != null) { const i = +d.delroom, nm = K.ruimtes[i].naam; pending = {title:`${nm||"Ruimte"} verwijderen?`, text:"De checks, foto's en metingen van deze ruimte worden verwijderd.", ok:"Verwijderen", danger:true, run:()=>{ K.ruimtes.splice(i,1); OPEN_ROOM=null; changed(); render(); }}; renderSheet(); return; }
+  if (d.snap) { if (SNAP.busy) { toast("Even wachten, de vorige foto wordt nog gelezen."); return; } SNAP = {busy:null, path:d.snap, label:d.lbl, unit:d.unit, id:d.for}; $("#snapin").click(); return; }
+  switch (d.act) {
+    case "home": saveNow(); K = null; loadFotoUrlsReset(); PHOTOS = []; VIEW = "home"; window.scrollTo(0,0); render(); break;
+    case "new": K = nieuweKeuring(); K.installateur = SET.installateur || ""; PHOTOS=[]; AI.result=null; AI.err=""; VIEW = "kast"; saveNow(); window.scrollTo(0,0); render(); break;
+    case "example": K = voorbeeld(); PHOTOS=[]; AI.result=null; AI.err=""; VIEW = "groepen"; saveNow(); window.scrollTo(0,0); render(); break;
+    case "analyse": analyse(); break;
+    case "stop": AI.ctl && AI.ctl.abort(); break;
+    case "apply":
+      if (K.groepen.length) { pending = {title:"Groepenlijst vervangen?", text:`De huidige ${K.groepen.length} groepen en ${K.als.length} aardlekschakelaar(s) worden vervangen door wat Claude op de foto's zag. Ingevulde metingen gaan daarbij verloren.`, ok:"Vervangen", run:applyResult}; renderSheet(); }
+      else applyResult(); break;
+    case "discard": AI.result = null; render.keepScroll=true; render(); break;
+    case "addgrp": { const last = K.groepen[K.groepen.length-1]; K.groepen.push({nr:K.groepen.length+1, kar:"B", In:16, polen:"1P+N", als:last?last.als:(K.als[0]?.id||""), omschr:"", mm2:"2,5", riso:"", zs:"", rpe:""}); changed(); render.keepScroll=true; render(); break; }
+    case "settings": saveNow(); K = null; PHOTOS = []; VIEW = "settings"; window.scrollTo(0,0); render(); break;
+    case "install": if (INSTALL) { INSTALL.prompt(); INSTALL.userChoice.finally(()=>{ INSTALL = null; render(); }); } break;
+    case "savekey": { const v = ($("#s_key").value||"").trim(); if (!v) { toast("Plak eerst je sleutel in het veld."); break; } if (!/^sk-ant-/.test(v)) { toast("Een sleutel begint met sk-ant-. Controleer wat je hebt geplakt."); break; } SET.apiKey = v; saveSet(); render(); toast("Sleutel opgeslagen"); break; }
+    case "delkey": SET.apiKey = ""; saveSet(); render(); toast("Sleutel verwijderd"); break;
+    case "testkey": { toast("Verbinding testen…"); callClaude('Antwoord met {"ok":true}', [], undefined).then(()=>toast("Verbinding werkt")).catch(e=>toast(e.code==="auth"?"Sleutel wordt niet geaccepteerd.":e.code==="offline"?"Geen internetverbinding.":e.code==="bad_request"?`Geweigerd: ${e.message||"controleer je tegoed"}`:"Test mislukt, probeer het later opnieuw.")); break; }
+    case "backup": exportBackup(); break;
+    case "stdrooms": K.ruimtes = standaardRuimtes(); changed(); render(); toast("12 ruimtes toegevoegd. Pas ze aan waar nodig."); break;
+    case "addroom": { const r = nieuweRuimte("Nieuwe ruimte","verblijf","Begane grond"); K.ruimtes = K.ruimtes||[]; K.ruimtes.push(r); OPEN_ROOM = r.id; changed(); render.keepScroll=true; render(); const el=document.getElementById(`rn_${r.id}`); if(el){ el.select(); el.scrollIntoView({block:"center"}); } break; }
+    case "addals": { let n = K.als.length+1; while (K.als.some(a=>a.id==="A"+n)) n++; K.als.push({id:"A"+n, polen:K.aansluiting==="3-fase"?4:2, In:40, idn:30, type:"A", Ia:"", t1:"", t5:""}); changed(); render.keepScroll=true; render(); break; }
+    case "askdel": pending = {title:"Keuring verwijderen?", text:"De keuring met alle groepen, checks en metingen wordt verwijderd. Dit kan niet ongedaan worden gemaakt.", ok:"Verwijderen", danger:true, run:()=>deleteKeuring(K.id)}; renderSheet(); break;
+    case "confirm": { const r = pending && pending.run; pending = null; renderSheet(); if (r) r(); break; }
+    case "cancel": if (e.target === t) { pending = null; renderSheet(); } break;
+  }
+});
+document.addEventListener("keydown", e => { if (e.key==="Escape" && pending) { pending=null; renderSheet(); } });
+
+render();
+initRuntime();
+</script>
+</body>
+</html>
