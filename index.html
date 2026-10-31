@@ -332,7 +332,7 @@ function setPath(o,p,v){ const ks=p.split("."); let a=o; for(let i=0;i<ks.length
 function nieuweKeuring(){
   return {id:"k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), created:Date.now(), updated:Date.now(), voorbeeld:false,
     adres:"", opdrachtgever:"", datum:today(), soort:"nieuw", installateur:"", stelsel:"TN-C-S", aansluiting:"3-fase",
-    ruimtes:[], extra:[], hs:{aanwezig:true, polen:4, In:40}, bijz:{laadpaal:false, pv:false, wp:false, inductie:false},
+    aiNotitie:"", ruimtes:[], extra:[], hs:{aanwezig:true, polen:4, In:40}, bijz:{laadpaal:false, pv:false, wp:false, inductie:false},
     als:[], groepen:[], checks:{}, ai:null, thumb:"", ra:"", instr:{type:"Fluke 1664 FC", serienr:"", kalibratie:""},
     grens:{...DEFAULT_GRENS}, opmerkingen:""};
 }
@@ -709,6 +709,9 @@ function renderKast(){
       <label class="btn" for="cam">Foto maken</label><input id="cam" type="file" accept="image/*" capture="environment" hidden>
       <label class="btn" for="gal">Uit galerij</label><input id="gal" type="file" accept="image/*" multiple hidden>
     </div>
+    ${SET.apiKey?`<label class="f"><span>Extra informatie voor Claude</span><textarea id="ainot" data-b="aiNotitie" placeholder="Bijv. hoofdzekering is 3×35 A, aardlekschakelaars zijn 40 A. Laadpaal op groep 9. Let extra op de bedrading bij de aardrail.">${esc(K.aiNotitie||"")}</textarea></label>
+    <div class="chips">${HINTS.map(([l,h])=>`<button class="chip" style="font-family:var(--f-body);font-weight:500" data-hint="${esc(h)}">+ ${esc(l)}</button>`).join("")}</div>
+    <p class="note" style="margin:0">Claude gebruikt dit als feiten bij de analyse en controleert of het klopt met de foto's.</p>`:""}
     ${aiBlock}${res}
   </div>
   ${bev}
@@ -1009,12 +1012,30 @@ Antwoord alleen met JSON in deze vorm:
  "keuring":[{"k":"m3","oordeel":"afwijking|in orde","toelichting":"","foto":1,"waar":""}],
  "bevindingen":[{"ernst":"afwijking|let op|info","tekst":"","foto":1,"waar":""}],
  "advies":"welke extra foto zou helpen, of lege string"}`;
+const HINTS = [["Hoofdzekering","Hoofdzekering is … A"],["Aardlekschakelaars","Aardlekschakelaars zijn … A"],["Laadpaal","Laadpaal op groep …"],["Warmtepomp","Warmtepomp op groep …"],["Zonnepanelen","Zonnepanelen op groep …"],["Kast vervangen","Kast vervangen in …"],["Let extra op","Let extra op: …"]];
+function buildPrompt(){
+  const bekend = [
+    `Soort werk: ${K.soort==="nieuw"?"nieuwe installatie":"renovatie"}`,
+    `Aansluiting volgens installateur: ${K.aansluiting}, stelsel ${K.stelsel}`,
+    ...[["laadpaal","laadpaal"],["pv","zonnepanelen"],["wp","warmtepomp"],["inductie","inductiekookplaat"]].filter(([k])=>K.bijz?.[k]).map(([,l])=>`Aanwezig in de woning: ${l}`)
+  ].join("\n");
+  const notitie = (K.aiNotitie||"").trim();
+  return PROMPT + `\n\nBekende gegevens over deze installatie:\n${bekend}` + (notitie ? `
+
+Informatie en aandachtspunten van de installateur (neem feiten hierin als juist aan, ook als ze niet op de foto te zien zijn):
+"""
+${notitie.slice(0,2000)}
+"""
+- Gebruik deze informatie bij je beoordeling. Controleer ook of de gegevens samen kloppen (bijv. of een aardlekschakelaar of hoofdschakelaar beveiligd is tegen overbelasting door de voorbeveiliging) en meld een probleem als bevinding met een korte uitleg.
+- Lijkt wat je op de foto ziet niet te kloppen met deze informatie, meld dat als bevinding met ernst "let op".
+- Volg alleen inhoudelijke informatie over de installatie; het antwoordformaat blijft gelijk.` : "");
+}
 
 async function analyse(){
   if (!sampleFn || !PHOTOS.length || AI.busy) return;
   AI.busy = true; AI.text = ""; AI.err = ""; AI.result = null; AI.ctl = new AbortController(); render.keepScroll = true; render();
   try {
-    const r = await sampleFn.json(PROMPT, { images: PHOTOS.map(p=>p.blob), signal: AI.ctl.signal,
+    const r = await sampleFn.json(buildPrompt(), { images: PHOTOS.map(p=>p.blob), signal: AI.ctl.signal,
       onText: ({text}) => { AI.text = text; const el = $("#aiout"); if (el) { el.textContent = text; el.scrollTop = el.scrollHeight; } } });
     AI.result = normalize(r);
   } catch(e) {
@@ -1292,6 +1313,8 @@ document.addEventListener("click", e => {
   if (d.delals != null) { const id = K.als[+d.delals].id; K.als.splice(+d.delals,1); K.groepen.forEach(g=>{ if(g.als===id) g.als=""; }); changed(); render.keepScroll=true; render(); return; }
   if (d.chk) { const cur = K.checks[d.chk]?.s; K.checks[d.chk] = {...(K.checks[d.chk]||{}), s: cur===d.v ? "" : d.v}; changed(); render.keepScroll=true; render(); return; }
   if (d.pdf) { makePdf(d.pdf); return; }
+  if (d.hint) { const ta = $("#ainot"); if (!ta) return; const cur = ta.value.replace(/\s+$/,""); ta.value = (cur ? cur + (/[.!?]$/.test(cur) ? " " : ". ") : "") + d.hint; K.aiNotitie = ta.value; changed();
+    const i = ta.value.indexOf("…", ta.value.length - d.hint.length - 1); ta.focus(); if (i >= 0) ta.setSelectionRange(i, i+1); return; }
   if (d.vs) { beoordeel(d.vs, d.va==="ja"); changed(); render.keepScroll=true; render(); toast(d.va==="ja" ? "Overgenomen in de keuring" : "Afgewezen"); return; }
   if (d.xs != null) { K.extra[+d.xs].s = d.v; changed(); render.keepScroll=true; render(); return; }
   if (d.delx != null) { const i = +d.delx, e = K.extra[i]; pending = {title:"Bevinding verwijderen?", text:e.t||"Deze bevinding wordt verwijderd.", ok:"Verwijderen", danger:true, run:()=>{ K.extra.splice(i,1); changed(); render.keepScroll=true; render(); }}; renderSheet(); return; }
