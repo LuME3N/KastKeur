@@ -521,6 +521,43 @@ async function importBackup(file){
   render(); toast(`${n} keuring(en) teruggezet`);
 }
 
+/* ---------- app-schil ---------- */
+let INSTALL = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); INSTALL = e; if (VIEW==="home") render(); });
+window.addEventListener("appinstalled", () => { INSTALL = null; toast("Kastkeur is geïnstalleerd"); if (VIEW==="home") render(); });
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
+
+function loadFotoUrlsReset(){ for (const k in FURL) { URL.revokeObjectURL(FURL[k]); delete FURL[k]; } }
+function renderSettings(){
+  const ks = SET.apiKey ? SET.apiKey.slice(0,10) + "…" + SET.apiKey.slice(-4) : "";
+  return `<header class="top"><div class="wrap"><button class="btn ghost" data-act="home" aria-label="Terug">←</button><div class="ttl"><div class="t">Instellingen</div></div></div></header>
+  <main class="home"><div class="wrap">
+  <div class="sec"><h2>Claude</h2>
+    <p class="lead">Voor het aflezen van foto's van de groepenkast. Elke analyse kost een paar cent van je tegoed op console.anthropic.com.</p>
+    <div class="panel stack">
+      <label class="f"><span>API-sleutel</span><input type="password" id="s_key" value="" placeholder="${ks?esc(ks):"sk-ant-…"}" autocomplete="off" spellcheck="false"></label>
+      <div class="row"><button class="btn pri small" data-act="savekey">Sleutel opslaan</button>${SET.apiKey?`<button class="btn small" data-act="testkey">Test verbinding</button><button class="btn ghost small danger" data-act="delkey">Verwijder sleutel</button>`:""}</div>
+      <label class="f"><span>Model</span><select id="s_model">${MODELLEN.map(([v,l])=>`<option value="${v}"${SET.model===v?" selected":""}>${esc(l)}</option>`).join("")}</select></label>
+      <p class="note" style="margin:0">De sleutel blijft alleen op deze telefoon en wordt alleen naar Anthropic gestuurd. Deel je telefoon niet ontgrendeld met anderen.</p>
+    </div></div>
+  <div class="sec"><h2>Standaardgegevens</h2>
+    <div class="panel stack">
+      <label class="f"><span>Naam installateur</span><input type="text" id="s_inst" value="${esc(SET.installateur)}" placeholder="Wordt ingevuld bij nieuwe keuringen"></label>
+      <label class="chk"><input type="checkbox" id="s_delen" ${SET.pdfDelen?"checked":""}> PDF via deelmenu (Mail, WhatsApp, Bestanden) in plaats van Downloads</label>
+    </div></div>
+  <div class="sec"><h2>Back-up</h2>
+    <p class="lead">Je keuringen staan alleen op deze telefoon. Bewaar een back-up op een veilige plek, bijvoorbeeld in Google Drive.</p>
+    <div class="row"><button class="btn" data-act="backup">Back-up maken</button><label class="btn" for="s_imp">Back-up terugzetten</label><input id="s_imp" type="file" accept="application/json,.json" hidden></div>
+  </div>
+  <p class="note" style="margin-top:26px">Kastkeur beta · ${LIST.length} keuring(en) op dit toestel</p>
+  </div></main>`;
+}
+
+const aiReady = () => !!SET.apiKey;
+const aiMissingMsg = () => `<p class="note">Om foto's door Claude te laten aflezen, vul je eerst je API-sleutel in bij Instellingen. Groepen met de hand invullen kan altijd.</p><button class="btn small" data-act="settings" style="align-self:flex-start">Naar instellingen</button>`;
+const dlNote = () => SET.pdfDelen && navigator.canShare ? "De PDF opent het deelmenu: kies bijvoorbeeld Mail, WhatsApp of Bestanden. Je kunt dit wijzigen bij Instellingen." : "De PDF wordt opgeslagen in Downloads. Je kunt dit wijzigen bij Instellingen.";
+/* ---------- einde runtime ---------- */
+
 /* ---------- beoordeling ---------- */
 function alsById(id){ return K.als.find(a=>a.id===id); }
 function zsLimit(g){ const k = KAR_K[g.kar]; const In = num(g.In); return (k && In) ? K.grens.u0/(k*In) : null; }
@@ -629,36 +666,6 @@ function renderTabs(){
   return `<nav class="tabs" aria-label="Stappen"><div class="in">${tabs.map(([v,l,c])=>`<button class="tab${VIEW===v?" on":""}" data-view="${v}"${VIEW===v?' aria-current="page"':""}><span class="ico">${l}</span><span class="cnt">${esc(c)}</span></button>`).join("")}</div></nav>`;
 }
 
-let INSTALL = null;
-window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); INSTALL = e; if (VIEW==="home") render(); });
-window.addEventListener("appinstalled", () => { INSTALL = null; toast("Kastkeur is geïnstalleerd"); if (VIEW==="home") render(); });
-if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
-
-function loadFotoUrlsReset(){ for (const k in FURL) { URL.revokeObjectURL(FURL[k]); delete FURL[k]; } }
-function renderSettings(){
-  const ks = SET.apiKey ? SET.apiKey.slice(0,10) + "…" + SET.apiKey.slice(-4) : "";
-  return `<header class="top"><div class="wrap"><button class="btn ghost" data-act="home" aria-label="Terug">←</button><div class="ttl"><div class="t">Instellingen</div></div></div></header>
-  <main class="home"><div class="wrap">
-  <div class="sec"><h2>Claude</h2>
-    <p class="lead">Voor het aflezen van foto's van de groepenkast. Elke analyse kost een paar cent van je tegoed op console.anthropic.com.</p>
-    <div class="panel stack">
-      <label class="f"><span>API-sleutel</span><input type="password" id="s_key" value="" placeholder="${ks?esc(ks):"sk-ant-…"}" autocomplete="off" spellcheck="false"></label>
-      <div class="row"><button class="btn pri small" data-act="savekey">Sleutel opslaan</button>${SET.apiKey?`<button class="btn small" data-act="testkey">Test verbinding</button><button class="btn ghost small danger" data-act="delkey">Verwijder sleutel</button>`:""}</div>
-      <label class="f"><span>Model</span><select id="s_model">${MODELLEN.map(([v,l])=>`<option value="${v}"${SET.model===v?" selected":""}>${esc(l)}</option>`).join("")}</select></label>
-      <p class="note" style="margin:0">De sleutel blijft alleen op deze telefoon en wordt alleen naar Anthropic gestuurd. Deel je telefoon niet ontgrendeld met anderen.</p>
-    </div></div>
-  <div class="sec"><h2>Standaardgegevens</h2>
-    <div class="panel stack">
-      <label class="f"><span>Naam installateur</span><input type="text" id="s_inst" value="${esc(SET.installateur)}" placeholder="Wordt ingevuld bij nieuwe keuringen"></label>
-      <label class="chk"><input type="checkbox" id="s_delen" ${SET.pdfDelen?"checked":""}> PDF via deelmenu (Mail, WhatsApp, Bestanden) in plaats van Downloads</label>
-    </div></div>
-  <div class="sec"><h2>Back-up</h2>
-    <p class="lead">Je keuringen staan alleen op deze telefoon. Bewaar een back-up op een veilige plek, bijvoorbeeld in Google Drive.</p>
-    <div class="row"><button class="btn" data-act="backup">Back-up maken</button><label class="btn" for="s_imp">Back-up terugzetten</label><input id="s_imp" type="file" accept="application/json,.json" hidden></div>
-  </div>
-  <p class="note" style="margin-top:26px">Kastkeur beta · ${LIST.length} keuring(en) op dit toestel</p>
-  </div></main>`;
-}
 function renderHome(){
   const where = "Je keuringen staan op deze telefoon. Maak af en toe een back-up via Instellingen.";
   let list;
@@ -683,7 +690,7 @@ function renderKast(){
   const photos = PHOTOS.map((p,i)=>`<div class="photo"><img src="${p.url}" alt="Foto ${i+1}"><span class="tag">${i===0?"Overzicht":"Close-up"}</span><button data-delphoto="${i}" aria-label="Foto verwijderen">×</button></div>`).join("");
   const maxN = AI.max || 4;
   let aiBlock;
-  if (!SET.apiKey) aiBlock = `<p class="note">Om foto's door Claude te laten aflezen, vul je eerst je API-sleutel in bij Instellingen. Groepen met de hand invullen kan altijd.</p><button class="btn small" data-act="settings" style="align-self:flex-start">Naar instellingen</button>`;
+  if (!aiReady()) aiBlock = aiMissingMsg();
   else if (!sampleImg) aiBlock = `<p class="note">Foto's naar Claude sturen is in deze weergave niet mogelijk. Vul de groepen met de hand in.</p>`;
   else aiBlock = `<div class="row">
       <button class="btn pri" data-act="analyse" ${(!PHOTOS.length||AI.busy)?"disabled":""}>${AI.busy?"Claude bekijkt de foto's…":"Analyseer foto's"}</button>
@@ -709,7 +716,7 @@ function renderKast(){
       <label class="btn" for="cam">Foto maken</label><input id="cam" type="file" accept="image/*" capture="environment" hidden>
       <label class="btn" for="gal">Uit galerij</label><input id="gal" type="file" accept="image/*" multiple hidden>
     </div>
-    ${SET.apiKey?`<label class="f"><span>Extra informatie voor Claude</span><textarea id="ainot" data-b="aiNotitie" placeholder="Bijv. hoofdzekering is 3×35 A, aardlekschakelaars zijn 40 A. Laadpaal op groep 9. Let extra op de bedrading bij de aardrail.">${esc(K.aiNotitie||"")}</textarea></label>
+    ${aiReady()?`<label class="f"><span>Extra informatie voor Claude</span><textarea id="ainot" data-b="aiNotitie" placeholder="Bijv. hoofdzekering is 3×35 A, aardlekschakelaars zijn 40 A. Laadpaal op groep 9. Let extra op de bedrading bij de aardrail.">${esc(K.aiNotitie||"")}</textarea></label>
     <div class="chips">${HINTS.map(([l,h])=>`<button class="chip" style="font-family:var(--f-body);font-weight:500" data-hint="${esc(h)}">+ ${esc(l)}</button>`).join("")}</div>
     <p class="note" style="margin:0">Claude gebruikt dit als feiten bij de analyse en controleert of het klopt met de foto's.</p>`:""}
     ${aiBlock}${res}
@@ -936,7 +943,7 @@ function roomsOf(nr){ return (K.ruimtes||[]).filter(r=>r.groepen.includes(nr)).m
 function renderRapport(){
   const cs = checkSummary(), m = measureStats();
   const rows = K.groepen.map(g=>`<tr><td class="n">${g.nr}</td><td>${esc(g.omschr||"")}${roomsOf(g.nr)?`<div class="lim">${esc(roomsOf(g.nr))}</div>`:""}</td><td class="mono">${esc(g.kar)}${esc(g.In)}</td><td>${esc(g.polen)}</td><td>${esc(g.als||"–")}</td></tr>`).join("");
-  const dlMsg = `<p class="note">${SET.pdfDelen && navigator.canShare ? "De PDF opent het deelmenu: kies bijvoorbeeld Mail, WhatsApp of Bestanden." : "De PDF wordt opgeslagen in Downloads."} Je kunt dit wijzigen bij Instellingen.</p>`;
+  const dlMsg = `<p class="note">${dlNote()}</p>`;
   const libOk = !!(window.jspdf && window.jspdf.jsPDF);
   return `
   ${pendingV().length?`<div class="cta" style="margin-bottom:16px"><div class="tx"><b>${pendingV().length} voorstel(len) nog niet beoordeeld</b><div class="small muted">Deze komen pas in het rapport als je ze overneemt.</div></div><button class="btn pri small" data-view="keuring">Beoordelen</button></div>`:""}
