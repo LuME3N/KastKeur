@@ -149,6 +149,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .seg button.on.v-ok{background:var(--ok);color:var(--surface)}
 .seg button.on.v-nok{background:var(--bad);color:var(--surface)}
 .seg button.on.v-nvt{background:var(--open);color:var(--surface)}
+.seg button.on.v-let{background:var(--warn);color:var(--surface)}
 .summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .sbox{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px;text-align:center}
 .sbox .v{font-family:var(--f-display);font-weight:700;font-size:28px;line-height:1}
@@ -213,6 +214,20 @@ nav.tabs .in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:re
 .mp{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto;gap:6px;align-items:end}
 .mp .lim{grid-column:auto}
 @media (max-width:520px){.mp{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.mp .wide{grid-column:span 2}}
+/* voorstellen uit foto-analyse */
+.vst{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:8px;border-left-width:4px}
+.vst.s-nok{border-left-color:var(--bad)}.vst.s-let{border-left-color:var(--warn)}.vst.s-ok{border-left-color:var(--ok)}
+.vst .vh{display:flex;gap:10px;align-items:flex-start}
+.vst .vh .tx{flex:1;min-width:0}
+.vst .waar{font-size:13px;color:var(--muted)}
+.vthumb{flex:none;width:64px;height:64px;border-radius:6px;overflow:hidden;border:1px solid var(--line);padding:0;background:var(--sunk);cursor:zoom-in}
+.vthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.bron{display:inline-block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle}
+.cta{background:var(--accent-soft);border-radius:var(--r);padding:12px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.cta .tx{flex:1;min-width:180px}
+.zoom{position:fixed;inset:0;z-index:25;background:rgba(5,8,12,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.zoom img{max-width:100%;max-height:80vh;object-fit:contain;border-radius:6px}
+.zoom .cap{color:#fff;font-size:14px;max-width:60ch;text-align:center}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--ink);color:var(--surface);padding:10px 14px;border-radius:8px;font-size:14px;max-width:90vw}
 @media (prefers-reduced-motion:no-preference){.toast{animation:up .2s ease-out}@keyframes up{from{transform:translate(-50%,8px);opacity:0}}}
 </style>
@@ -221,6 +236,7 @@ nav.tabs .in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:re
 
 <div id="app"></div>
 <div id="sheet" hidden></div>
+<div id="zoom" hidden></div>
 <div id="toast" class="toast" hidden></div>
 <input id="snapin" type="file" accept="image/*" capture="environment" hidden>
 <input id="fotoin" type="file" accept="image/*" hidden>
@@ -316,10 +332,21 @@ function setPath(o,p,v){ const ks=p.split("."); let a=o; for(let i=0;i<ks.length
 function nieuweKeuring(){
   return {id:"k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), created:Date.now(), updated:Date.now(), voorbeeld:false,
     adres:"", opdrachtgever:"", datum:today(), soort:"nieuw", installateur:"", stelsel:"TN-C-S", aansluiting:"3-fase",
-    ruimtes:[], hs:{aanwezig:true, polen:4, In:40}, overspanning:"onbekend", bijz:{laadpaal:false, pv:false, wp:false, inductie:false},
+    ruimtes:[], extra:[], hs:{aanwezig:true, polen:4, In:40}, overspanning:"onbekend", bijz:{laadpaal:false, pv:false, wp:false, inductie:false},
     als:[], groepen:[], checks:{}, ai:null, thumb:"", ra:"", instr:{type:"Fluke 1664 FC", serienr:"", kalibratie:""},
     grens:{...DEFAULT_GRENS}, opmerkingen:""};
 }
+function migreer(k){
+  k.extra = k.extra || []; k.ruimtes = k.ruimtes || [];
+  if (k.ai && !k.ai.voorstellen) {
+    const b = k.ai.bevindingen || [];
+    k.ai.voorstellen = b.filter(x=>x.ernst!=="info").map(x=>({id:"v"+Math.random().toString(36).slice(2,8), k:null, s:x.ernst==="afwijking"?"nok":"let", tekst:x.tekst, waar:"", foto:0, status:"open"}));
+    k.ai.tips = b.filter(x=>x.ernst==="info").map(x=>x.tekst); k.ai.fotos = k.ai.fotos || [];
+    delete k.ai.bevindingen;
+  }
+  return k;
+}
+const pendingV = () => (K?.ai?.voorstellen||[]).filter(v=>v.status==="open");
 function voorbeeld(){
   const k = nieuweKeuring();
   Object.assign(k, {voorbeeld:true, adres:"Voorbeeldstraat 12, Nieuwkoop", opdrachtgever:"Voorbeeld", soort:"renovatie"});
@@ -327,13 +354,15 @@ function voorbeeld(){
   k.als = [{id:"A1", polen:4, In:40, idn:30, type:"?", Ia:"", t1:"", t5:""},{id:"A2", polen:4, In:40, idn:30, type:"?", Ia:"", t1:"", t5:""}];
   const om = ["Verlichting beg. grond","Woonkamer wcd","Keuken wcd","Kookgroep L1","Kookgroep L2","Wasmachine","Slaapkamer 1","Slaapkamer 2","Zolder"];
   k.groepen = om.map((o,i)=>({nr:i+1, kar:"B", In:16, polen:"1P+N", als:i<4?"A1":"A2", omschr:o, mm2:"2,5", riso:"", zs:"", rpe:""}));
-  k.ai = {datum:Date.now(), advies:"Maak close-ups per rij om type aardlekschakelaar en automaat-types te kunnen lezen.",
-    bevindingen:[
-      {ernst:"let op", tekst:"Geen overspanningsbeveiliging zichtbaar; beoordelen bij renovatie."},
-      {ernst:"let op", tekst:"Wago-klem met beschermingsleidingen links in de kast; controleer of de PE-doorverbinding bewust en correct is."},
-      {ernst:"let op", tekst:"Onderin lijkt een groene (niet groen-gele) ader te lopen; mogelijk oude beschermingsleiding."},
-      {ernst:"info", tekst:"Positie 3–4 op rij 1 wijken af in uitvoering; mogelijk kookgroep of vervangen automaat."},
-      {ernst:"info", tekst:"Type aardlekschakelaar (A/AC) niet leesbaar op deze foto."}
+  const v = (k_, s_, tekst, waar) => ({id:"v"+Math.random().toString(36).slice(2,8), k:k_, s:s_, tekst, waar, foto:0, status:"open"});
+  k.ai = {datum:Date.now(), advies:"Maak close-ups per rij om type aardlekschakelaar en automaat-types te kunnen lezen.", fotos:[],
+    tips:["Positie 3–4 op rij 1 wijken af in uitvoering; mogelijk kookgroep of vervangen automaat.","Type aardlekschakelaar (A/AC) niet leesbaar op deze foto."],
+    voorstellen:[
+      v("m4","nok","Wago-klem met beschermingsleidingen naast de aardrail; PE-doorverbinding niet via de aardrail.","links midden, naast de rijgklemmen"),
+      v("m3","nok","Een groene (niet groen-gele) ader als beschermingsleiding.","onderin, onder de aardlekschakelaars"),
+      v("m1","ok","Afdekstroken en blindplaten aanwezig; geen open modules zichtbaar.",""),
+      v("m11","ok","Reserveruimte op rij 1.","rij 1, rechts"),
+      v(null,"let","Geen overspanningsbeveiliging zichtbaar; beoordelen bij renovatie.","")
     ]};
   return k;
 }
@@ -415,9 +444,17 @@ async function saveFile(data, filename){
 
 /* ---------- foto's van afwijkingen ---------- */
 const FURL = {};
+function alleFotos(k){
+  const out = [];
+  for (const r of (k.ruimtes||[])) for (const c of Object.values(r.checks||{})) out.push(...(c.f||[]));
+  for (const c of Object.values(k.checks||{})) out.push(...(c.f||[]));
+  for (const e of (k.extra||[])) out.push(...(e.f||[]));
+  out.push(...((k.ai && k.ai.fotos)||[]).map(id=>({id})));
+  return out;
+}
 async function loadFotoUrls(k){
   if (!k) return; let changedAny = false;
-  for (const r of (k.ruimtes||[])) for (const c of Object.values(r.checks||{})) for (const f of (c.f||[])) {
+  for (const f of alleFotos(k)) {
     if (f.id && !FURL[f.id]) { try { const b = await fotoGet(f.id); if (b) { FURL[f.id] = URL.createObjectURL(b); changedAny = true; } } catch(e){} }
   }
   if (changedAny && K === k) { render.keepScroll = true; render(); }
@@ -459,7 +496,7 @@ async function deleteKeuring(id){
   const k = LIST.find(x=>x.id===id) || K;
   try {
     await dbDel(id);
-    for (const r of (k?.ruimtes||[])) for (const c of Object.values(r.checks||{})) for (const f of (c.f||[])) if (f.id) await assetsLocal.delete(f.id).catch(()=>{});
+    for (const f of (k ? alleFotos(k) : [])) if (f.id) await assetsLocal.delete(f.id).catch(()=>{});
     LIST = LIST.filter(x=>x.id!==id);
   } catch(e){ toast("Verwijderen lukte niet."); return; }
   K = null; VIEW = "home"; render(); toast("Keuring verwijderd");
@@ -539,8 +576,9 @@ function autoChecks(){
 function manualSt(k){ const s = K.checks[k]?.s; return s==="ok"?"ok":s==="nok"?"nok":s==="nvt"?"nvt":"open"; }
 function allChecks(){
   const a = autoChecks().map(c => ({...c, auto:true}));
-  const m = MANUAL.map(c => ({...c, st:manualSt(c.k), opm:K.checks[c.k]?.o||""}));
-  return a.concat(m);
+  const m = MANUAL.map(c => ({...c, st:manualSt(c.k), opm:K.checks[c.k]?.o||"", foto:K.checks[c.k]?.bron==="foto"}));
+  const x = (K.extra||[]).map(e => ({k:e.id, t:e.t||"Bevinding", ref:"bevinding", st:["ok","let","nok"].includes(e.s)?e.s:"open", opm:e.waar?`Plek: ${e.waar}`:"", foto:e.bron==="foto"}));
+  return a.concat(m, x);
 }
 function roomCheckRows(){
   const out = [];
@@ -589,7 +627,7 @@ function renderTop(){
 }
 function renderTabs(){
   const cs = checkSummary(), m = measureStats();
-  const tabs = [["kast","Kast", PHOTOS.length?`${PHOTOS.length} foto`:"foto"],["groepen","Groepen", K.groepen.length],["woning","Woning", (K.ruimtes||[]).length?`${K.ruimtes.length} rmt`:"–"],["keuring","Keuring", cs.nok?`${cs.nok} afw.`:`${cs.open} open`],["metingen","Metingen",`${m.done}/${m.tot}`],["rapport","Rapport","pdf"]];
+  const tabs = [["kast","Kast", PHOTOS.length?`${PHOTOS.length} foto`:"foto"],["groepen","Groepen", K.groepen.length],["woning","Woning", (K.ruimtes||[]).length?`${K.ruimtes.length} rmt`:"–"],["keuring","Keuring", pendingV().length?`${pendingV().length} nieuw`:cs.nok?`${cs.nok} afw.`:`${cs.open} open`],["metingen","Metingen",`${m.done}/${m.tot}`],["rapport","Rapport","pdf"]];
   return `<nav class="tabs" aria-label="Stappen"><div class="in">${tabs.map(([v,l,c])=>`<button class="tab${VIEW===v?" on":""}" data-view="${v}"${VIEW===v?' aria-current="page"':""}><span class="ico">${l}</span><span class="cnt">${esc(c)}</span></button>`).join("")}</div></nav>`;
 }
 
@@ -658,10 +696,13 @@ function renderKast(){
   const res = AI.result ? `<div class="panel stack"><div class="sec-h"><h3>Gevonden op de foto's</h3></div>
       <div class="rail">${railHtml(AI.result.hsObj, AI.result.alsArr, AI.result.grpArr)}</div>
       <p class="small" style="margin:0">${AI.result.grpArr.length} groepen, ${AI.result.alsArr.length} aardlekschakelaar(s)${AI.result.hsObj.aanwezig?`, hoofdschakelaar ${AI.result.hsObj.polen}P ${AI.result.hsObj.In||"?"} A`:""}.</p>
-      <div class="row"><button class="btn pri" data-act="apply">Overnemen in groepenlijst</button><button class="btn" data-act="discard">Negeren</button></div></div>` : "";
-  const bev = K.ai?.bevindingen?.length ? `<div class="sec"><div class="sec-h"><h2>Bevindingen uit foto</h2><span class="small muted">${K.ai.datum?new Date(K.ai.datum).toLocaleDateString("nl-NL"):""}</span></div>
-      <div class="panel">${K.ai.bevindingen.map(b=>`<div class="find">${pill(b.ernst==="afwijking"?"nok":b.ernst==="let op"?"let":"open")}<div class="tx">${esc(b.tekst)}</div></div>`).join("")}
-      ${K.ai.advies?`<div class="find"><span class="pill st-open">Tip</span><div class="tx">${esc(K.ai.advies)}</div></div>`:""}</div></div>` : "";
+      <p class="small" style="margin:0">${AI.result.voorstellen.filter(v=>v.s!=="ok").length} mogelijke afkeurpunten en ${AI.result.voorstellen.filter(v=>v.s==="ok").length} punten in orde voorgesteld. Die beoordeel je daarna zelf op het tabblad Keuring.</p>
+      <div class="row">${K.groepen.length
+        ? `<button class="btn pri" data-act="apply">Alles overnemen</button><button class="btn" data-act="applypunten">Alleen keuringspunten</button>`
+        : `<button class="btn pri" data-act="apply">Overnemen</button>`}<button class="btn" data-act="discard">Negeren</button></div></div>` : "";
+  const pv = pendingV().length;
+  const bev = K.ai ? `<div class="sec">${pv?`<div class="cta"><div class="tx"><b>${pv} voorstel${pv>1?"len":""} uit de foto-analyse</b><div class="small muted">Wacht${pv>1?"en":""} op jouw oordeel voordat ${pv>1?"ze":"het"} in het rapport ${pv>1?"komen":"komt"}.</div></div><button class="btn pri small" data-view="keuring">Beoordelen</button></div>`:""}
+      ${(K.ai.tips||[]).length||K.ai.advies?`<div class="panel">${(K.ai.tips||[]).map(t=>`<div class="find"><span class="pill st-open">Info</span><div class="tx">${esc(t)}</div></div>`).join("")}${K.ai.advies?`<div class="find"><span class="pill st-open">Tip</span><div class="tx">${esc(K.ai.advies)}</div></div>`:""}</div>`:""}</div>` : "";
   return `
   <div class="sec"><div class="sec-h"><h2>Foto's van de kast</h2></div>
     <p class="lead">Begin met één foto van de hele kast. Voeg daarna close-ups per rij toe, zodat Claude de kleine opdrukken (B16, 30 mA, type A) kan lezen.</p>
@@ -735,22 +776,51 @@ function renderGroepen(){
     ${K.groepen.length?`<button class="btn" data-act="addgrp" style="align-self:flex-start">+ Groep toevoegen</button>`:""}</div>`;
 }
 
+function thumbBtn(id, cap){ const src = FURL[id]; return src ? `<button class="vthumb" data-zoom="${esc(id)}" data-cap="${esc(cap||"")}" aria-label="Foto vergroten"><img src="${esc(src)}" alt=""></button>` : ""; }
+function voorstellenHtml(){
+  const all = (K.ai?.voorstellen)||[]; if (!all.length) return "";
+  const open = all.filter(v=>v.status==="open");
+  const akk = all.filter(v=>v.status==="akkoord").length, afg = all.filter(v=>v.status==="afgewezen").length;
+  const order = {nok:0, let:1, ok:2};
+  const cards = open.slice().sort((a,b)=>order[a.s]-order[b.s]).map(v => {
+    const chk = v.k ? MANUAL.find(c=>c.k===v.k) : null;
+    const fid = v.foto ? K.ai.fotos?.[v.foto-1] : null;
+    const lbl = v.s==="ok" ? "In orde" : v.s==="let" ? "Let op" : "Afwijking";
+    return `<div class="vst s-${v.s}"><div class="vh"><div class="tx">
+        <div class="row" style="gap:6px"><span class="pill st-${v.s}">${lbl}</span><span class="small muted">${chk?esc(chk.t):"Overige bevinding"}</span></div>
+        <div style="margin-top:6px">${esc(v.tekst)}</div>${v.waar?`<div class="waar">Plek: ${esc(v.waar)}</div>`:""}</div>
+        ${fid?thumbBtn(fid, v.tekst + (v.waar?` · ${v.waar}`:"")):""}</div>
+      <div class="row"><button class="btn small pri" data-vs="${v.id}" data-va="ja">${v.s==="ok"?"Klopt":"Overnemen"}</button><button class="btn small" data-vs="${v.id}" data-va="nee">Afwijzen</button></div></div>`;
+  }).join("");
+  const nOk = open.filter(v=>v.s==="ok").length;
+  return `<div class="sec"><div class="sec-h"><h2>Te beoordelen</h2>${nOk>1?`<button class="btn small" data-act="okall">Alle ${nOk} "in orde" overnemen</button>`:""}</div>
+    ${open.length ? `<p class="lead" style="margin:0">Dit zag Claude op de foto's. Neem over wat klopt en wijs af wat niet klopt. Alleen wat je overneemt komt in het rapport.</p><div class="stack">${cards}</div>`
+      : `<div class="cta"><div class="tx"><b>Alle voorstellen beoordeeld</b><div class="small muted">${akk} overgenomen, ${afg} afgewezen.</div></div>${afg?`<button class="btn small" data-act="herstelv">Afgewezen terughalen</button>`:""}</div>`}
+    ${open.length && (akk||afg) ? `<span class="small muted">${akk} overgenomen, ${afg} afgewezen.</span>`:""}</div>`;
+}
 function renderKeuring(){
   const cs = checkSummary();
   const ac = autoChecks(), mc = MANUAL;
   const autoHtml = ac.map(c=>`<div class="check b-${c.st}"><div class="ch"><div class="tx"><div><b>${esc(c.t)}</b></div><div class="small muted">${esc(c.d)}</div><div class="ref">NEN 1010 ${esc(c.ref)}</div></div>${pill(c.st)}</div></div>`).join("");
-  const manHtml = mc.map(c=>{ const s = K.checks[c.k]?.s||""; const st = manualSt(c.k);
-    return `<div class="check b-${st==="nvt"?"open":st}"><div class="ch"><div class="tx"><div><b>${esc(c.t)}</b></div><div class="ref">${c.ref==="advies"||c.ref==="woningpraktijk"?esc(c.ref):"NEN 1010 "+esc(c.ref)}</div></div></div>
+  const manHtml = mc.map(c=>{ const s = K.checks[c.k]?.s||""; const st = manualSt(c.k); const cf = K.checks[c.k]?.f||[];
+    return `<div class="check b-${st==="nvt"?"open":st}"><div class="ch"><div class="tx"><div><b>${esc(c.t)}</b>${K.checks[c.k]?.bron==="foto"?`<span class="bron">uit foto</span>`:""}</div><div class="ref">${c.ref==="advies"||c.ref==="woningpraktijk"?esc(c.ref):"NEN 1010 "+esc(c.ref)}</div></div></div>
       <div class="row"><div class="seg" role="group" aria-label="Beoordeling">${[["ok","In orde"],["nok","Afwijking"],["nvt","N.v.t."]].map(([v,l])=>`<button class="v-${v}${s===v?" on":""}" data-chk="${c.k}" data-v="${v}" aria-pressed="${s===v}">${l}</button>`).join("")}</div></div>
-      ${s==="nok"||K.checks[c.k]?.o?`<input type="text" id="co_${c.k}" data-b="checks.${c.k}.o" value="${esc(K.checks[c.k]?.o||"")}" placeholder="Omschrijf de afwijking">`:""}</div>`;}).join("");
-  const bev = K.ai?.bevindingen?.length ? `<div class="sec"><h2>Uit de foto-analyse</h2><div class="panel">${K.ai.bevindingen.map(b=>`<div class="find">${pill(b.ernst==="afwijking"?"nok":b.ernst==="let op"?"let":"open")}<div class="tx">${esc(b.tekst)}</div></div>`).join("")}</div>
-     <p class="note">Bevindingen van Claude zijn een hulp bij het kijken. Neem ze over in de checklist hieronder als je ze zelf bevestigt.</p></div>` : "";
+      ${s==="nok"||K.checks[c.k]?.o?`<input type="text" id="co_${c.k}" data-b="checks.${c.k}.o" value="${esc(K.checks[c.k]?.o||"")}" placeholder="Omschrijf de afwijking">`:""}
+      ${cf.length?`<div class="fotos">${cf.map(f=>thumbBtn(f.id, c.t)).join("")}</div>`:""}</div>`;}).join("");
+  const bev = voorstellenHtml();
+  const extraHtml = (K.extra||[]).map((e,i)=>`<div class="check b-${e.s==="ok"?"ok":e.s==="let"?"let":"nok"}">
+      <div class="ch"><div class="tx">${inp(`ex_${e.id}`,`extra.${i}.t`,e.t,'placeholder="Omschrijf de bevinding" aria-label="Bevinding"')}${e.waar?`<div class="small muted" style="margin-top:4px">Plek: ${esc(e.waar)}</div>`:""}${e.bron==="foto"?`<span class="bron" style="margin:6px 0 0">uit foto</span>`:""}</div>
+      <button class="btn ghost small danger" data-delx="${i}" aria-label="Bevinding verwijderen">×</button></div>
+      <div class="row"><div class="seg" role="group" aria-label="Beoordeling">${[["nok","Afwijking"],["let","Let op"],["ok","Opgelost"]].map(([v,l])=>`<button class="v-${v}${e.s===v?" on":""}" data-xs="${i}" data-v="${v}" aria-pressed="${e.s===v}">${l}</button>`).join("")}</div></div>
+      ${(e.f||[]).length?`<div class="fotos">${e.f.map(f=>thumbBtn(f.id, e.t)).join("")}</div>`:""}</div>`).join("");
   return `
   <div class="sec"><h2>Keuring</h2>
     <div class="summary">${[["ok","In orde"],["let","Let op"],["nok","Afwijking"],["open","Open"]].map(([k,l])=>`<div class="sbox"><div class="v" style="color:var(--${k==="nok"?"bad":k==="let"?"warn":k==="ok"?"ok":"open"})">${cs[k]||0}</div><div class="l">${l}</div></div>`).join("")}</div></div>
-  <div class="sec"><div class="sec-h"><h3>Automatisch uit je gegevens</h3></div><div class="stack">${autoHtml}</div></div>
   ${bev}
+  <div class="sec"><div class="sec-h"><h3>Automatisch uit je gegevens</h3></div><div class="stack">${autoHtml}</div></div>
   <div class="sec"><div class="sec-h"><h3>Visuele inspectie groepenkast</h3></div><div class="stack">${manHtml}</div></div>
+  <div class="sec"><div class="sec-h"><h3>Overige bevindingen</h3><button class="btn small" data-act="addextra">+ Bevinding</button></div>
+    ${extraHtml?`<div class="stack">${extraHtml}</div>`:`<span class="small muted">Afwijkingen die niet in de checklist passen. Voeg ze zelf toe of neem ze over uit de foto-analyse.</span>`}</div>
   <div class="sec"><div class="sec-h"><h3>Woning</h3><button class="btn small" data-view="woning">Naar ruimtes</button></div>
     ${(K.ruimtes||[]).length ? `<div class="panel">${K.ruimtes.map(r=>{const s=roomSt(r);return `<div class="find">${pill(s.nok?"nok":s.open?"open":"ok")}<div class="tx"><b>${esc(r.naam)}</b> <span class="small muted">${s.nok?`${s.nok} afwijking(en)`:s.open?`${s.open} van ${s.tot} open`:"alles beoordeeld"}</span></div></div>`;}).join("")}</div>` : `<div class="empty"><span class="muted">Nog geen ruimtes. Voeg ze toe op het tabblad Woning.</span></div>`}</div>
   <div class="sec"><h3>Opmerkingen voor het rapport</h3><textarea id="opm" data-b="opmerkingen" placeholder="Bijv. advies aan bewoner, afspraken over herstel">${esc(K.opmerkingen)}</textarea></div>
@@ -869,6 +939,7 @@ function renderRapport(){
   const dlMsg = `<p class="note">${SET.pdfDelen && navigator.canShare ? "De PDF opent het deelmenu: kies bijvoorbeeld Mail, WhatsApp of Bestanden." : "De PDF wordt opgeslagen in Downloads."} Je kunt dit wijzigen bij Instellingen.</p>`;
   const libOk = !!(window.jspdf && window.jspdf.jsPDF);
   return `
+  ${pendingV().length?`<div class="cta" style="margin-bottom:16px"><div class="tx"><b>${pendingV().length} voorstel(len) nog niet beoordeeld</b><div class="small muted">Deze komen pas in het rapport als je ze overneemt.</div></div><button class="btn pri small" data-view="keuring">Beoordelen</button></div>`:""}
   <div class="sec"><h2>Rapporten</h2>
     <p class="lead">${cs.nok?`<b style="color:var(--bad)">${cs.nok} afwijking(en)</b> in de keuring. `:""}${cs.open?`${cs.open} keuringspunt(en) open. `:"Keuring compleet. "}${m.done} van ${m.tot} metingen ingevuld.</p>
     <div class="dlrow">
@@ -924,7 +995,14 @@ Regels:
 - Gok niet. Is een waarde niet leesbaar, gebruik null (of "?" bij tekst) en zet "zeker" op "laag".
 - Koppel een groep alleen aan een aardlekschakelaar ("als") als de bedrading of kamrail dat duidelijk laat zien; anders "".
 - Een installatieautomaat 1P+N van 1 module telt als één eindgroep. Aardlekautomaten (gecombineerd) neem je op als groep én noem je in de bevindingen.
-- Bevindingen gaan over wat zichtbaar afwijkt of aandacht vraagt t.o.v. NEN 1010 (bijv. ontbrekende afdekking, groepen zonder aardlek, meer dan 4 groepen per aardlek, kleurcodering, losse/tijdelijke verbindingen, geen overspanningsbeveiliging). Kort en concreet, in het Nederlands.
+
+Keuring op basis van de foto's:
+Beoordeel deze keuringspunten, maar alleen voor zover ze echt op de foto's te zien zijn:
+${MANUAL.map(c=>`${c.k}: ${c.t}`).join("\n")}
+- Geef per punt dat je kunt beoordelen een oordeel "afwijking" of "in orde", met een korte, concrete toelichting (wat zie je precies). Punten die je niet goed kunt zien laat je weg; gok niet.
+- "foto" is het nummer van de foto (1 = eerste) waarop het het best te zien is, "waar" de plek in de kast (bijv. "linksonder, bij de aardrail" of "rij 1, positie 3").
+- Zie je andere zaken die afwijken of aandacht vragen t.o.v. NEN 1010 en niet onder deze punten vallen (bijv. groepen zonder aardlek, geen overspanningsbeveiliging, losse of tijdelijke verbindingen, brand- of hitteschade, ontbrekende afdekking), zet die in "bevindingen" met ernst "afwijking" of "let op". Gebruik ernst "info" voor praktische opmerkingen zonder afkeur (bijv. iets onleesbaars).
+- Schrijf kort en zakelijk in het Nederlands, zoals in een keuringsrapport.
 
 Antwoord alleen met JSON in deze vorm:
 {"aansluiting":"1-fase|3-fase|onbekend",
@@ -932,7 +1010,8 @@ Antwoord alleen met JSON in deze vorm:
  "aardlek":[{"id":"A1","positie":"rij 2, pos 2","polen":4,"In":40,"idn":30,"type":"A|AC|B|F|?","merkType":"","zeker":"hoog"}],
  "groepen":[{"nr":1,"positie":"rij 1, pos 1","kar":"B|C|D|?","In":16,"polen":"1P+N|2P|3P+N|1P|?","als":"A1","omschr":"","zeker":"midden"}],
  "overspanning":"ja|nee|onbekend",
- "bevindingen":[{"ernst":"afwijking|let op|info","tekst":""}],
+ "keuring":[{"k":"m3","oordeel":"afwijking|in orde","toelichting":"","foto":1,"waar":""}],
+ "bevindingen":[{"ernst":"afwijking|let op|info","tekst":"","foto":1,"waar":""}],
  "advies":"welke extra foto zou helpen, of lege string"}`;
 
 async function analyse(){
@@ -962,17 +1041,57 @@ function normalize(r){
   const ids = new Set(alsArr.map(a=>a.id));
   const grpArr = (Array.isArray(r.groepen)?r.groepen:[]).map((g,i)=>({nr:i+1, kar:["B","C","D"].includes(g.kar)?g.kar:"?", In:g.In??"", polen:["1P+N","2P","3P+N","1P"].includes(g.polen)?g.polen:"?",
     als: ids.has(g.als)?g.als:"", omschr: String(g.omschr||""), mm2: num(g.In)>=20?"4":"2,5", riso:"", zs:"", rpe:""}));
-  const bev = (Array.isArray(r.bevindingen)?r.bevindingen:[]).filter(b=>b&&b.tekst).map(b=>({ernst:["afwijking","let op","info"].includes(b.ernst)?b.ernst:"info", tekst:String(b.tekst)}));
-  return {hsObj, alsArr, grpArr, bev, advies:String(r.advies||""), aansluiting:r.aansluiting, overspanning:r.overspanning};
+  const nF = PHOTOS.length, vid = () => "v"+Math.random().toString(36).slice(2,8);
+  const fotoNr = f => { const n = parseInt(f,10); return n>=1 && n<=nF ? n : (nF===1 ? 1 : 0); };
+  const keys = new Set(MANUAL.map(c=>c.k)), seen = new Set();
+  const voorstellen = [];
+  (Array.isArray(r.keuring)?r.keuring:[]).forEach(c => {
+    if (!c || !keys.has(c.k) || seen.has(c.k)) return;
+    const o = String(c.oordeel||"").toLowerCase(); if (o!=="afwijking" && o!=="in orde") return;
+    seen.add(c.k);
+    voorstellen.push({id:vid(), k:c.k, s:o==="afwijking"?"nok":"ok", tekst:String(c.toelichting||"").slice(0,400), waar:String(c.waar||"").slice(0,120), foto:fotoNr(c.foto), status:"open"});
+  });
+  const tips = [];
+  (Array.isArray(r.bevindingen)?r.bevindingen:[]).forEach(b => {
+    if (!b || !b.tekst) return;
+    if (b.ernst==="afwijking" || b.ernst==="let op") voorstellen.push({id:vid(), k:null, s:b.ernst==="afwijking"?"nok":"let", tekst:String(b.tekst).slice(0,400), waar:String(b.waar||"").slice(0,120), foto:fotoNr(b.foto), status:"open"});
+    else tips.push(String(b.tekst).slice(0,300));
+  });
+  return {hsObj, alsArr, grpArr, voorstellen, tips, advies:String(r.advies||""), aansluiting:r.aansluiting, overspanning:r.overspanning};
 }
-function applyResult(){
+async function applyResult(mode){
   const r = AI.result; if (!r) return;
-  K.hs = r.hsObj; K.als = r.alsArr; K.groepen = r.grpArr;
-  if (r.aansluiting==="1-fase"||r.aansluiting==="3-fase") K.aansluiting = r.aansluiting;
+  if (mode !== "punten") {
+    K.hs = r.hsObj; K.als = r.alsArr; K.groepen = r.grpArr;
+    if (r.aansluiting==="1-fase"||r.aansluiting==="3-fase") K.aansluiting = r.aansluiting;
+  }
   if (r.overspanning==="ja") K.overspanning="ja"; else if (r.overspanning==="nee" && K.overspanning==="onbekend") K.overspanning="nee";
-  K.ai = {datum:Date.now(), bevindingen:r.bev, advies:r.advies};
+  // foto's bewaren waar voorstellen naar verwijzen
+  const inGebruik = new Set(alleFotos({...K, ai:null}).map(f=>f.id));
+  for (const id of (K.ai?.fotos||[])) if (id && !inGebruik.has(id)) assetsLocal.delete(id).catch(()=>{});
+  const fotos = [];
+  for (const p of PHOTOS) { try { const b = await shrink(p.blob, 1600, 0.8); fotos.push(b ? (await assetsLocal.upload(b)).id : null); } catch(e){ fotos.push(null); } }
+  K.ai = {datum:Date.now(), voorstellen:r.voorstellen, tips:r.tips, advies:r.advies, fotos};
   K.voorbeeld = false;
-  AI.result = null; changed(); VIEW = "groepen"; window.scrollTo(0,0); render(); toast("Overgenomen. Controleer de groepen en koppel ze aan een aardlek.");
+  const n = r.voorstellen.length;
+  AI.result = null; changed(); VIEW = n ? "keuring" : "groepen"; window.scrollTo(0,0); render();
+  toast(n ? `${n} voorstel${n>1?"len":""} klaar om te beoordelen.${mode!=="punten"?" Controleer daarna de groepen.":""}` : "Overgenomen. Controleer de groepen en koppel ze aan een aardlek.");
+}
+function beoordeel(id, ja){
+  const v = (K.ai?.voorstellen||[]).find(x=>x.id===id); if (!v) return;
+  v.status = ja ? "akkoord" : "afgewezen";
+  if (ja) {
+    const fid = v.foto ? K.ai.fotos?.[v.foto-1] : null;
+    const tekst = v.tekst + (v.waar && v.s!=="ok" ? ` (${v.waar})` : "");
+    if (v.k) {
+      const prev = K.checks[v.k] || {};
+      const f = (prev.f||[]).slice(); if (fid && v.s!=="ok" && !f.some(x=>x.id===fid)) f.push({id:fid});
+      K.checks[v.k] = {...prev, s: v.s==="ok" ? "ok" : "nok", o: v.s==="ok" ? (prev.o||"") : (prev.o && prev.s==="nok" ? prev.o + "; " + tekst : tekst), bron:"foto", f};
+    } else {
+      K.extra = K.extra || [];
+      K.extra.push({id:"x"+Math.random().toString(36).slice(2,8), t:v.tekst, waar:v.waar, s:v.s==="let"?"let":"nok", bron:"foto", f: fid ? [{id:fid}] : []});
+    }
+  }
 }
 
 /* ---------- PDF ---------- */
@@ -1014,13 +1133,10 @@ function pdfKeuring(doc){
   if (K.thumb) { try { const W = doc.internal.pageSize.getWidth(); const ip = doc.getImageProperties(K.thumb); const w = 42, h = w*ip.height/ip.width; doc.addImage(K.thumb,"JPEG",W-14-w,y+2,w,h); } catch(e){} }
   const tblRight = K.thumb ? 64 : 14;
   doc.autoTable({...AT, startY:y+2, margin:{left:14,right:tblRight}, head:[["Keuringspunt","Bepaling","Resultaat"]],
-    body: allChecks().map(c=>[ c.t + (c.auto&&c.d? "\n"+c.d : "") + (c.opm? "\nOpm.: "+c.opm : ""), c.ref, {content:stTxt(c.st), st:c.st==="nvt"?"open":c.st}]),
+    body: allChecks().map(c=>[ c.t + (c.foto?" (foto)":"") + (c.auto&&c.d? "\n"+c.d : "") + (c.opm? "\nOpm.: "+c.opm : ""), c.ref, {content:stTxt(c.st), st:c.st==="nvt"?"open":c.st}]),
     columnStyles:{1:{cellWidth:26, textColor:PDF_C.muted},2:{cellWidth:22}}, didParseCell:d=>colorCell(d,2)});
   y = doc.lastAutoTable.finalY + 6;
-  if (K.ai?.bevindingen?.length) {
-    doc.autoTable({...AT, startY:y, head:[["Bevindingen uit foto-analyse (door installateur beoordeeld)","Ernst"]], body:K.ai.bevindingen.map(b=>[b.tekst,b.ernst]), columnStyles:{1:{cellWidth:22}}});
-    y = doc.lastAutoTable.finalY + 6;
-  }
+  if (allChecks().some(c=>c.foto)) { doc.setFontSize(8); doc.setTextColor(...PDF_C.muted); doc.text("(foto) = voorgesteld door de foto-analyse en beoordeeld door de installateur.", 14, y-2); doc.setTextColor(...PDF_C.ink); y += 3; }
   const rr = roomCheckRows();
   if (rr.length) {
     doc.autoTable({...AT, startY:y, head:[["Ruimte","Keuringspunt","Bepaling","Resultaat"]],
@@ -1032,7 +1148,7 @@ function pdfKeuring(doc){
   }
   if (K.opmerkingen) { doc.autoTable({...AT, startY:y, head:[["Opmerkingen"]], body:[[K.opmerkingen]]}); y = doc.lastAutoTable.finalY + 6; }
   signature(doc, y);
-  const fl = rr.flatMap(x => x.fotos.map(f => ({f, cap:`${x.r.naam}: ${x.c.t}`}))).filter(o => PDF_IMG[o.f.id || o.f.data]);
+  const fl = fotoRijen().filter(o => PDF_IMG[o.f.id || o.f.data]);
   if (fl.length) {
     doc.addPage(); let yy = pdfHeader(doc, "Foto's bij afwijkingen"); let col = 0; const w = 88;
     fl.forEach(o => { const src = PDF_IMG[o.f.id || o.f.data]; let ip; try { ip = doc.getImageProperties(src); } catch(e){ return; }
@@ -1084,9 +1200,16 @@ function footer(doc){
 }
 let PDF_IMG = {};
 const pdfTxt = t => String(t).replace(/IΔn/g,"Idn").replace(/Δ/g,"d").replace(/Ω/g,"Ohm").replace(/≤/g,"<=").replace(/≥/g,">=").replace(/₀/g,"0").replace(/→/g,"->").replace(/[^\x00-\xFF€–—‘’“”•…×²³·]/g,"?");
+function fotoRijen(){
+  const out = [];
+  MANUAL.forEach(c => { const e = K.checks[c.k]; if (e && e.s==="nok") (e.f||[]).forEach(f => out.push({f, cap:`Groepenkast: ${c.t}`})); });
+  (K.extra||[]).forEach(e => { if (e.s!=="ok") (e.f||[]).forEach(f => out.push({f, cap:`Groepenkast: ${e.t}${e.waar?` (${e.waar})`:""}`})); });
+  roomCheckRows().forEach(x => x.fotos.forEach(f => out.push({f, cap:`${x.r.naam}: ${x.c.t}`})));
+  return out;
+}
 async function preloadFotos(){
   PDF_IMG = {};
-  for (const x of roomCheckRows()) for (const f of x.fotos) {
+  for (const {f} of fotoRijen()) {
     if (f.data) { PDF_IMG[f.data] = f.data; continue; }
     if (f.id && !PDF_IMG[f.id]) { try { const b = await fotoGet(f.id); if (b) PDF_IMG[f.id] = await blobToData(b); } catch(e){} }
   }
@@ -1168,12 +1291,16 @@ document.addEventListener("click", e => {
   const t = e.target.closest("button, [data-act]"); if (!t) return;
   const d = t.dataset;
   if (d.view) { VIEW = d.view; window.scrollTo(0,0); render(); return; }
-  if (d.open) { const k = LIST.find(x=>x.id===d.open); if (k) { K = clone(k); K.grens = {...DEFAULT_GRENS, ...(K.grens||{})}; K.ruimtes = K.ruimtes || []; OPEN_ROOM = null; loadFotoUrls(K); PHOTOS = []; AI.result=null; AI.err=""; saveState=""; VIEW = "kast"; window.scrollTo(0,0); render(); } return; }
+  if (d.open) { const k = LIST.find(x=>x.id===d.open); if (k) { K = clone(k); K.grens = {...DEFAULT_GRENS, ...(K.grens||{})}; migreer(K); OPEN_ROOM = null; loadFotoUrls(K); PHOTOS = []; AI.result=null; AI.err=""; saveState=""; VIEW = "kast"; window.scrollTo(0,0); render(); } return; }
   if (d.delphoto != null) { const p = PHOTOS.splice(+d.delphoto,1)[0]; if (p) URL.revokeObjectURL(p.url); render.keepScroll=true; render(); return; }
   if (d.delgrp != null) { K.groepen.splice(+d.delgrp,1); K.groepen.forEach((g,i)=>g.nr=i+1); changed(); render.keepScroll=true; render(); return; }
   if (d.delals != null) { const id = K.als[+d.delals].id; K.als.splice(+d.delals,1); K.groepen.forEach(g=>{ if(g.als===id) g.als=""; }); changed(); render.keepScroll=true; render(); return; }
   if (d.chk) { const cur = K.checks[d.chk]?.s; K.checks[d.chk] = {...(K.checks[d.chk]||{}), s: cur===d.v ? "" : d.v}; changed(); render.keepScroll=true; render(); return; }
   if (d.pdf) { makePdf(d.pdf); return; }
+  if (d.vs) { beoordeel(d.vs, d.va==="ja"); changed(); render.keepScroll=true; render(); toast(d.va==="ja" ? "Overgenomen in de keuring" : "Afgewezen"); return; }
+  if (d.xs != null) { K.extra[+d.xs].s = d.v; changed(); render.keepScroll=true; render(); return; }
+  if (d.delx != null) { const i = +d.delx, e = K.extra[i]; pending = {title:"Bevinding verwijderen?", text:e.t||"Deze bevinding wordt verwijderd.", ok:"Verwijderen", danger:true, run:()=>{ K.extra.splice(i,1); changed(); render.keepScroll=true; render(); }}; renderSheet(); return; }
+  if (d.zoom) { const z = $("#zoom"); z.innerHTML = `<div class="zoom" data-act="zoomclose"><img src="${esc(FURL[d.zoom]||"")}" alt=""><div class="cap">${esc(d.cap||"")}</div><button class="btn" data-act="zoomclose">Sluiten</button></div>`; z.hidden = false; return; }
   if (d.room) { OPEN_ROOM = OPEN_ROOM===d.room ? null : d.room; render.keepScroll = true; render(); if (OPEN_ROOM) { const el = document.querySelector(`[data-room="${OPEN_ROOM}"]`); if (el) el.scrollIntoView({block:"nearest"}); } return; }
   if (d.rg != null) { const r = K.ruimtes[+d.rg], nr = +d.nr; r.groepen = r.groepen.includes(nr) ? r.groepen.filter(x=>x!==nr) : r.groepen.concat(nr).sort((a,b)=>a-b); changed(); render.keepScroll=true; render(); return; }
   if (d.rchk != null) { const r = K.ruimtes[+d.rchk]; const cur = r.checks[d.k]?.s; r.checks[d.k] = {...(r.checks[d.k]||{}), s: cur===d.v ? "" : d.v}; changed(); render.keepScroll=true; render(); return; }
@@ -1186,12 +1313,17 @@ document.addEventListener("click", e => {
   switch (d.act) {
     case "home": saveNow(); K = null; loadFotoUrlsReset(); PHOTOS = []; VIEW = "home"; window.scrollTo(0,0); render(); break;
     case "new": K = nieuweKeuring(); K.installateur = SET.installateur || ""; PHOTOS=[]; AI.result=null; AI.err=""; VIEW = "kast"; saveNow(); window.scrollTo(0,0); render(); break;
-    case "example": K = voorbeeld(); PHOTOS=[]; AI.result=null; AI.err=""; VIEW = "groepen"; saveNow(); window.scrollTo(0,0); render(); break;
+    case "example": K = voorbeeld(); PHOTOS=[]; AI.result=null; AI.err=""; VIEW = "keuring"; saveNow(); window.scrollTo(0,0); render(); break;
     case "analyse": analyse(); break;
     case "stop": AI.ctl && AI.ctl.abort(); break;
     case "apply":
-      if (K.groepen.length) { pending = {title:"Groepenlijst vervangen?", text:`De huidige ${K.groepen.length} groepen en ${K.als.length} aardlekschakelaar(s) worden vervangen door wat Claude op de foto's zag. Ingevulde metingen gaan daarbij verloren.`, ok:"Vervangen", run:applyResult}; renderSheet(); }
-      else applyResult(); break;
+      if (K.groepen.length) { pending = {title:"Groepenlijst vervangen?", text:`De huidige ${K.groepen.length} groepen en ${K.als.length} aardlekschakelaar(s) worden vervangen door wat Claude op de foto's zag. Ingevulde metingen gaan daarbij verloren. Kies "Alleen keuringspunten" als je de groepen wilt houden.`, ok:"Vervangen", run:()=>applyResult("alles")}; renderSheet(); }
+      else applyResult("alles"); break;
+    case "applypunten": applyResult("punten"); break;
+    case "okall": pendingV().filter(v=>v.s==="ok").forEach(v=>beoordeel(v.id, true)); changed(); render.keepScroll=true; render(); toast("Overgenomen"); break;
+    case "herstelv": (K.ai?.voorstellen||[]).forEach(v=>{ if (v.status==="afgewezen") v.status="open"; }); changed(); render.keepScroll=true; render(); break;
+    case "addextra": { K.extra = K.extra||[]; const e = {id:"x"+Math.random().toString(36).slice(2,8), t:"", waar:"", s:"nok", bron:"eigen", f:[]}; K.extra.push(e); changed(); render.keepScroll=true; render(); const el = document.getElementById(`ex_${e.id}`); if (el) { el.focus(); el.scrollIntoView({block:"center"}); } break; }
+    case "zoomclose": $("#zoom").hidden = true; $("#zoom").innerHTML = ""; break;
     case "discard": AI.result = null; render.keepScroll=true; render(); break;
     case "addgrp": { const last = K.groepen[K.groepen.length-1]; K.groepen.push({nr:K.groepen.length+1, kar:"B", In:16, polen:"1P+N", als:last?last.als:(K.als[0]?.id||""), omschr:"", mm2:"2,5", riso:"", zs:"", rpe:""}); changed(); render.keepScroll=true; render(); break; }
     case "settings": saveNow(); K = null; PHOTOS = []; VIEW = "settings"; window.scrollTo(0,0); render(); break;
@@ -1208,7 +1340,7 @@ document.addEventListener("click", e => {
     case "cancel": if (e.target === t) { pending = null; renderSheet(); } break;
   }
 });
-document.addEventListener("keydown", e => { if (e.key==="Escape" && pending) { pending=null; renderSheet(); } });
+document.addEventListener("keydown", e => { if (e.key==="Escape") { if (!$("#zoom").hidden) { $("#zoom").hidden = true; $("#zoom").innerHTML = ""; } else if (pending) { pending=null; renderSheet(); } } });
 
 render();
 initRuntime();

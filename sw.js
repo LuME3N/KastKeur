@@ -1,5 +1,5 @@
 // Kastkeur service worker: app werkt offline, updates komen automatisch binnen.
-const VERSIE = "kastkeur-v1";
+const VERSIE = "kastkeur-v2";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/maskable-512.png"];
 const CDN = ["https://cdnjs.cloudflare.com/", "https://fonts.googleapis.com/", "https://fonts.gstatic.com/"];
 
