@@ -332,12 +332,13 @@ function setPath(o,p,v){ const ks=p.split("."); let a=o; for(let i=0;i<ks.length
 function nieuweKeuring(){
   return {id:"k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), created:Date.now(), updated:Date.now(), voorbeeld:false,
     adres:"", opdrachtgever:"", datum:today(), soort:"nieuw", installateur:"", stelsel:"TN-C-S", aansluiting:"3-fase",
-    ruimtes:[], extra:[], hs:{aanwezig:true, polen:4, In:40}, overspanning:"onbekend", bijz:{laadpaal:false, pv:false, wp:false, inductie:false},
+    ruimtes:[], extra:[], hs:{aanwezig:true, polen:4, In:40}, bijz:{laadpaal:false, pv:false, wp:false, inductie:false},
     als:[], groepen:[], checks:{}, ai:null, thumb:"", ra:"", instr:{type:"Fluke 1664 FC", serienr:"", kalibratie:""},
     grens:{...DEFAULT_GRENS}, opmerkingen:""};
 }
 function migreer(k){
-  k.extra = k.extra || []; k.ruimtes = k.ruimtes || [];
+  k.extra = k.extra || []; k.ruimtes = k.ruimtes || []; delete k.overspanning;
+  if (k.ai?.voorstellen) k.ai.voorstellen = k.ai.voorstellen.filter(v => !(v.status==="open" && /overspanning/i.test(v.tekst)));
   if (k.ai && !k.ai.voorstellen) {
     const b = k.ai.bevindingen || [];
     k.ai.voorstellen = b.filter(x=>x.ernst!=="info").map(x=>({id:"v"+Math.random().toString(36).slice(2,8), k:null, s:x.ernst==="afwijking"?"nok":"let", tekst:x.tekst, waar:"", foto:0, status:"open"}));
@@ -362,7 +363,7 @@ function voorbeeld(){
       v("m3","nok","Een groene (niet groen-gele) ader als beschermingsleiding.","onderin, onder de aardlekschakelaars"),
       v("m1","ok","Afdekstroken en blindplaten aanwezig; geen open modules zichtbaar.",""),
       v("m11","ok","Reserveruimte op rij 1.","rij 1, rechts"),
-      v(null,"let","Geen overspanningsbeveiliging zichtbaar; beoordelen bij renovatie.","")
+      v(null,"let","Losse rijgklem met meerdere aders boven de aardlekschakelaars; controleer of de verbinding goed vastzit.","rij 2, links")
     ]};
   return k;
 }
@@ -565,9 +566,6 @@ function autoChecks(){
     st: !bijz ? (onb.length ? "open" : "ok") : ac.length ? "nok" : onb.length ? "open" : "ok",
     d: !bijz ? (onb.length ? `Type nog invullen bij ${onb.map(a=>a.id).join(", ")}.` : "Geen bijzondere verbruikers opgegeven.")
        : ac.length ? `${ac.map(a=>a.id).join(", ")} is type AC.` : onb.length ? `Type onbekend bij ${onb.map(a=>a.id).join(", ")}.` : "In orde."});
-  out.push({k:"a_ovsp", t:"Overspanningsbeveiliging aanwezig of risico beoordeeld", ref:"443 / 534",
-    st: K.overspanning==="ja" ? "ok" : K.overspanning==="beoordeeld" ? "ok" : K.overspanning==="nee" ? "let" : "open",
-    d: {ja:"Aanwezig.", nee:"Niet aanwezig; leg de risicobeoordeling vast.", beoordeeld:"Niet nodig volgens risicobeoordeling.", onbekend:"Nog invullen op tabblad Kast."}[K.overspanning]});
   const m = measureStats();
   out.push({k:"a_meet", t:"Metingen compleet en binnen grenswaarden", ref:"6.4.3",
     st: m.nok ? "nok" : m.done < m.tot ? "open" : "ok", d:`${m.done} van ${m.tot} metingen ingevuld${m.nok?`, ${m.nok} buiten grenswaarde`:""}.`});
@@ -727,7 +725,6 @@ function renderKast(){
       <div class="grid3">
         <label class="f"><span>Aansluiting</span>${sel("aansl","aansluiting",K.aansluiting,["1-fase","3-fase"])}</label>
         <label class="f"><span>Stelsel</span>${sel("stelsel","stelsel",K.stelsel,["TN-C-S","TN-S","TT"])}</label>
-        <label class="f"><span>Overspanningsbev.</span>${sel("ovsp","overspanning",K.overspanning,[["onbekend","Nog bepalen"],["ja","Aanwezig"],["nee","Niet aanwezig"],["beoordeeld","Niet nodig (beoordeeld)"]])}</label>
       </div>
       <div class="grid3">
         <label class="chk"><input type="checkbox" id="hsa" data-b="hs.aanwezig" data-re ${K.hs.aanwezig?"checked":""}> Hoofdschakelaar</label>
@@ -1001,7 +998,7 @@ Beoordeel deze keuringspunten, maar alleen voor zover ze echt op de foto's te zi
 ${MANUAL.map(c=>`${c.k}: ${c.t}`).join("\n")}
 - Geef per punt dat je kunt beoordelen een oordeel "afwijking" of "in orde", met een korte, concrete toelichting (wat zie je precies). Punten die je niet goed kunt zien laat je weg; gok niet.
 - "foto" is het nummer van de foto (1 = eerste) waarop het het best te zien is, "waar" de plek in de kast (bijv. "linksonder, bij de aardrail" of "rij 1, positie 3").
-- Zie je andere zaken die afwijken of aandacht vragen t.o.v. NEN 1010 en niet onder deze punten vallen (bijv. groepen zonder aardlek, geen overspanningsbeveiliging, losse of tijdelijke verbindingen, brand- of hitteschade, ontbrekende afdekking), zet die in "bevindingen" met ernst "afwijking" of "let op". Gebruik ernst "info" voor praktische opmerkingen zonder afkeur (bijv. iets onleesbaars).
+- Zie je andere zaken die afwijken of aandacht vragen t.o.v. NEN 1010 en niet onder deze punten vallen (bijv. groepen zonder aardlek, losse of tijdelijke verbindingen, brand- of hitteschade, ontbrekende afdekking), zet die in "bevindingen" met ernst "afwijking" of "let op". Gebruik ernst "info" voor praktische opmerkingen zonder afkeur (bijv. iets onleesbaars).
 - Schrijf kort en zakelijk in het Nederlands, zoals in een keuringsrapport.
 
 Antwoord alleen met JSON in deze vorm:
@@ -1009,7 +1006,6 @@ Antwoord alleen met JSON in deze vorm:
  "hoofdschakelaar":{"aanwezig":true,"polen":4,"In":40,"merkType":"","zeker":"hoog|midden|laag"},
  "aardlek":[{"id":"A1","positie":"rij 2, pos 2","polen":4,"In":40,"idn":30,"type":"A|AC|B|F|?","merkType":"","zeker":"hoog"}],
  "groepen":[{"nr":1,"positie":"rij 1, pos 1","kar":"B|C|D|?","In":16,"polen":"1P+N|2P|3P+N|1P|?","als":"A1","omschr":"","zeker":"midden"}],
- "overspanning":"ja|nee|onbekend",
  "keuring":[{"k":"m3","oordeel":"afwijking|in orde","toelichting":"","foto":1,"waar":""}],
  "bevindingen":[{"ernst":"afwijking|let op|info","tekst":"","foto":1,"waar":""}],
  "advies":"welke extra foto zou helpen, of lege string"}`;
@@ -1057,7 +1053,7 @@ function normalize(r){
     if (b.ernst==="afwijking" || b.ernst==="let op") voorstellen.push({id:vid(), k:null, s:b.ernst==="afwijking"?"nok":"let", tekst:String(b.tekst).slice(0,400), waar:String(b.waar||"").slice(0,120), foto:fotoNr(b.foto), status:"open"});
     else tips.push(String(b.tekst).slice(0,300));
   });
-  return {hsObj, alsArr, grpArr, voorstellen, tips, advies:String(r.advies||""), aansluiting:r.aansluiting, overspanning:r.overspanning};
+  return {hsObj, alsArr, grpArr, voorstellen, tips, advies:String(r.advies||""), aansluiting:r.aansluiting};
 }
 async function applyResult(mode){
   const r = AI.result; if (!r) return;
@@ -1065,7 +1061,6 @@ async function applyResult(mode){
     K.hs = r.hsObj; K.als = r.alsArr; K.groepen = r.grpArr;
     if (r.aansluiting==="1-fase"||r.aansluiting==="3-fase") K.aansluiting = r.aansluiting;
   }
-  if (r.overspanning==="ja") K.overspanning="ja"; else if (r.overspanning==="nee" && K.overspanning==="onbekend") K.overspanning="nee";
   // foto's bewaren waar voorstellen naar verwijzen
   const inGebruik = new Set(alleFotos({...K, ai:null}).map(f=>f.id));
   for (const id of (K.ai?.fotos||[])) if (id && !inGebruik.has(id)) assetsLocal.delete(id).catch(()=>{});
@@ -1126,7 +1121,7 @@ function pdfGroep(doc){
 }
 function pdfKeuring(doc){
   let y = pdfHeader(doc, "Keuringsrapport");
-  y = kv(doc, y, [["Adres",K.adres],["Opdrachtgever",K.opdrachtgever],["Datum",nlDate(K.datum)],["Uitgevoerd door",K.installateur],["Soort",K.soort==="nieuw"?"Nieuwe installatie":"Renovatie"],["Stelsel",K.stelsel],["Aansluiting",K.aansluiting],["Overspanningsbev.",{ja:"aanwezig",nee:"niet aanwezig",beoordeeld:"niet nodig (beoordeeld)",onbekend:"nog bepalen"}[K.overspanning]]]);
+  y = kv(doc, y, [["Adres",K.adres],["Opdrachtgever",K.opdrachtgever],["Datum",nlDate(K.datum)],["Uitgevoerd door",K.installateur],["Soort",K.soort==="nieuw"?"Nieuwe installatie":"Renovatie"],["Stelsel",K.stelsel],["Aansluiting",K.aansluiting],["Hoofdschakelaar",K.hs.aanwezig?`${K.hs.polen}P ${K.hs.In} A`:"geen"]]);
   const cs = checkSummary();
   doc.setFontSize(10); doc.setFont("helvetica","bold");
   doc.text(`Resultaat: ${cs.ok||0} in orde · ${cs.let||0} let op · ${cs.nok||0} afwijking · ${cs.open||0} open`, 14, y); doc.setFont("helvetica","normal"); y += 4;
